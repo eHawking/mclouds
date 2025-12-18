@@ -154,6 +154,18 @@ function App() {
 
         // Update site settings store
         if (s) {
+          // Parse partner logos if stored as JSON string
+          let partnerLogosParsed = []
+          if (s.partner_logos) {
+            try {
+              partnerLogosParsed = typeof s.partner_logos === 'string'
+                ? JSON.parse(s.partner_logos)
+                : s.partner_logos
+            } catch (e) {
+              console.error('Failed to parse partner logos:', e)
+            }
+          }
+
           setSiteSettings({
             siteName: s.site_name || 'Magnetic Clouds',
             siteTagline: s.site_tagline || 'Premium Cloud Hosting',
@@ -164,7 +176,8 @@ function App() {
             footerLogoDark: s.footer_logo_dark || null,
             footerLogoHeight: parseInt(s.footer_logo_height) || 40,
             favicon: s.site_favicon || null,
-            contactEmail: s.contact_email || ''
+            contactEmail: s.contact_email || '',
+            partnerLogos: partnerLogosParsed
           })
         }
       })

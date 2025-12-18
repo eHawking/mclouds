@@ -42,6 +42,19 @@ export default function AdminSettings() {
         const res = await api.get('/settings/public')
         if (res.data.settings) {
           const s = res.data.settings
+
+          // Parse partner logos safely
+          let partnerLogos = []
+          if (s.partner_logos) {
+            try {
+              partnerLogos = typeof s.partner_logos === 'string'
+                ? JSON.parse(s.partner_logos)
+                : s.partner_logos
+            } catch (e) {
+              console.error('Failed to parse partner logos:', e)
+            }
+          }
+
           setFormData(prev => ({
             ...prev,
             siteName: s.site_name || prev.siteName,
@@ -54,7 +67,7 @@ export default function AdminSettings() {
             footerLogoDark: s.footer_logo_dark || prev.footerLogoDark,
             footerLogoHeight: parseInt(s.footer_logo_height) || prev.footerLogoHeight,
             favicon: s.site_favicon || prev.favicon,
-            partnerLogos: s.partner_logos ? JSON.parse(s.partner_logos) : prev.partnerLogos
+            partnerLogos: partnerLogos.length > 0 ? partnerLogos : prev.partnerLogos
           }))
         }
       } catch (err) {

@@ -509,14 +509,14 @@ router.get('/email', authenticate, requireRole('admin'), async (req, res) => {
     ];
 
     const results = await db.query(
-      'SELECT setting_key, setting_value, value_type FROM settings WHERE setting_key IN (?)',
+      'SELECT setting_key, setting_value, setting_type FROM settings WHERE setting_key IN (?)',
       [keys]
     );
 
     const settings = {};
     results.forEach(row => {
       let value = row.setting_value;
-      if (row.value_type === 'boolean') {
+      if (row.setting_type === 'boolean') {
         value = value === 'true' || value === '1';
       }
       settings[row.setting_key] = value;
@@ -535,14 +535,14 @@ router.put('/email', authenticate, requireRole('admin'), async (req, res) => {
     const settings = req.body;
 
     for (const [key, value] of Object.entries(settings)) {
-      const valueType = typeof value === 'boolean' ? 'boolean' : 'string';
+      const settingType = typeof value === 'boolean' ? 'boolean' : 'string';
       const dbValue = typeof value === 'boolean' ? (value ? 'true' : 'false') : value;
 
       await db.query(
-        `INSERT INTO settings (setting_key, setting_value, value_type, category)
+        `INSERT INTO settings (setting_key, setting_value, setting_type, category)
          VALUES (?, ?, ?, 'email')
-         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), value_type = VALUES(value_type)`,
-        [key, dbValue, valueType]
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), setting_type = VALUES(setting_type)`,
+        [key, dbValue, settingType]
       );
     }
 
