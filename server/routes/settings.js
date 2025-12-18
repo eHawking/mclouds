@@ -8,7 +8,7 @@ const router = express.Router();
 router.get('/public', async (req, res) => {
   try {
     const settings = await db.query('SELECT setting_key, setting_value, setting_type FROM settings WHERE is_public = TRUE');
-    
+
     const result = {};
     for (const s of settings) {
       if (s.setting_type === 'json') {
@@ -37,7 +37,7 @@ router.get('/public', async (req, res) => {
 router.get('/', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const { category } = req.query;
-    
+
     let query = 'SELECT * FROM settings';
     const params = [];
 
@@ -68,15 +68,21 @@ router.put('/', authenticate, requireRole('admin'), async (req, res) => {
     const { settings } = req.body;
 
     // Define which settings should be public
-    const publicSettings = ['site_name', 'site_tagline', 'site_logo', 'site_favicon', 'contact_email', 'contact_phone'];
+    const publicSettings = [
+      'site_name', 'site_tagline', 'site_logo', 'site_favicon',
+      'contact_email', 'contact_phone',
+      'header_logo_dark', 'header_logo_height',
+      'footer_logo', 'footer_logo_dark', 'footer_logo_height',
+      'partner_logos'
+    ];
 
     for (const [key, value] of Object.entries(settings)) {
       const settingValue = typeof value === 'object' ? JSON.stringify(value) : String(value || '');
       const isPublic = publicSettings.includes(key);
-      
+
       // Check if setting exists
       const existing = await db.query('SELECT id FROM settings WHERE setting_key = ?', [key]);
-      
+
       if (existing && existing.length > 0) {
         await db.query(
           'UPDATE settings SET setting_value = ?, is_public = ? WHERE setting_key = ?',
@@ -144,7 +150,7 @@ router.get('/datacenters', async (req, res) => {
 router.get('/announcements', async (req, res) => {
   try {
     const { location } = req.query;
-    
+
     let query = `
       SELECT * FROM announcements 
       WHERE is_active = TRUE
@@ -172,7 +178,7 @@ router.get('/announcements', async (req, res) => {
 router.get('/translations/:locale', async (req, res) => {
   try {
     const translations = await db.query('SELECT translation_key, translation_value FROM translations WHERE locale = ?', [req.params.locale]);
-    
+
     const result = {};
     for (const t of translations) {
       result[t.translation_key] = t.translation_value;
@@ -191,7 +197,7 @@ router.get('/pricing', async (req, res) => {
     const settings = await db.query(
       "SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'pricing_%'"
     );
-    
+
     const pricing = {};
     for (const s of settings) {
       const key = s.setting_key.replace('pricing_', '');
@@ -248,7 +254,7 @@ router.put('/pricing', authenticate, requireRole('admin'), async (req, res) => {
     const value = JSON.stringify(plans);
 
     const existing = await db.query('SELECT id FROM settings WHERE setting_key = ?', [key]);
-    
+
     if (existing && existing.length > 0) {
       await db.query(
         'UPDATE settings SET setting_value = ?, setting_type = ?, is_public = TRUE WHERE setting_key = ?',
@@ -312,7 +318,7 @@ router.get('/payment-gateway', authenticate, requireRole('admin'), async (req, r
     // Build settings object
     const settings = {};
     const booleanKeys = [
-      'stripe_enabled', 'paypal_enabled', 'bkash_enabled', 
+      'stripe_enabled', 'paypal_enabled', 'bkash_enabled',
       'rocket_enabled', 'bank_transfer_enabled', 'cash_payment_enabled'
     ];
 
@@ -340,17 +346,17 @@ router.get('/payment-gateway', authenticate, requireRole('admin'), async (req, r
 router.put('/payment-gateway', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const settings = req.body;
-    
+
     // List of boolean keys that should be stored as 'true' or 'false'
     const booleanKeys = [
-      'stripe_enabled', 'paypal_enabled', 'bkash_enabled', 
+      'stripe_enabled', 'paypal_enabled', 'bkash_enabled',
       'rocket_enabled', 'bank_transfer_enabled', 'cash_payment_enabled'
     ];
-    
+
     for (const [key, value] of Object.entries(settings)) {
       let dbValue;
       let settingType;
-      
+
       // Handle boolean fields - convert to 'true' or 'false' string
       if (booleanKeys.includes(key)) {
         dbValue = value === true || value === 'true' ? 'true' : 'false';
@@ -359,10 +365,10 @@ router.put('/payment-gateway', authenticate, requireRole('admin'), async (req, r
         dbValue = value !== null && value !== undefined ? String(value) : '';
         settingType = 'string';
       }
-      
+
       // Check if setting exists
       const existing = await db.query('SELECT id FROM settings WHERE setting_key = ?', [key]);
-      
+
       if (existing && existing.length > 0) {
         // Update existing setting
         await db.query(
@@ -390,12 +396,12 @@ router.put('/payment-gateway', authenticate, requireRole('admin'), async (req, r
 router.post('/payment-gateway/test', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const { gateway } = req.body;
-    
+
     if (gateway === 'stripe') {
       // Get Stripe keys from settings
       const modeResult = await db.query("SELECT setting_value FROM settings WHERE setting_key = 'stripe_mode'");
       const mode = modeResult[0]?.setting_value || 'test';
-      
+
       const keyName = mode === 'live' ? 'stripe_secret_key_live' : 'stripe_secret_key_test';
       const keyResult = await db.query("SELECT setting_value FROM settings WHERE setting_key = ?", [keyName]);
       const secretKey = keyResult[0]?.setting_value;
@@ -407,7 +413,7 @@ router.post('/payment-gateway/test', authenticate, requireRole('admin'), async (
       // Test connection by checking account
       const stripe = require('stripe')(secretKey);
       await stripe.accounts.retrieve();
-      
+
       res.json({ success: true, message: 'Stripe connection successful' });
     } else {
       res.json({ success: false, error: 'Unknown gateway' });
@@ -527,11 +533,11 @@ router.get('/email', authenticate, requireRole('admin'), async (req, res) => {
 router.put('/email', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const settings = req.body;
-    
+
     for (const [key, value] of Object.entries(settings)) {
       const valueType = typeof value === 'boolean' ? 'boolean' : 'string';
       const dbValue = typeof value === 'boolean' ? (value ? 'true' : 'false') : value;
-      
+
       await db.query(
         `INSERT INTO settings (setting_key, setting_value, value_type, category)
          VALUES (?, ?, ?, 'email')
@@ -551,14 +557,14 @@ router.put('/email', authenticate, requireRole('admin'), async (req, res) => {
 router.post('/email/test', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const { email } = req.body;
-    
+
     if (!email) {
       return res.status(400).json({ error: 'Email address required' });
     }
 
     const emailService = require('../services/emailService');
     await emailService.sendTestEmail(email);
-    
+
     res.json({ success: true, message: 'Test email sent' });
   } catch (error) {
     console.error('Test email error:', error);
@@ -572,7 +578,7 @@ router.get('/custom-vps-pricing', async (req, res) => {
     const result = await db.query(
       "SELECT setting_value FROM settings WHERE setting_key = 'custom_vps_pricing'"
     );
-    
+
     const defaultPricing = {
       cpu_price_per_core: 3.00,
       ram_price_per_gb: 1.50,
@@ -586,14 +592,14 @@ router.get('/custom-vps-pricing', async (req, res) => {
       backup_price: 3.00,
       managed_support_price: 10.00,
     };
-    
+
     let pricing = defaultPricing;
     if (result[0]?.setting_value) {
       try {
         pricing = { ...defaultPricing, ...JSON.parse(result[0].setting_value) };
-      } catch (e) {}
+      } catch (e) { }
     }
-    
+
     res.json({ pricing });
   } catch (error) {
     console.error('Get custom VPS pricing error:', error);
@@ -606,9 +612,9 @@ router.put('/custom-vps-pricing', authenticate, requireRole('admin'), async (req
   try {
     const pricing = req.body;
     const value = JSON.stringify(pricing);
-    
+
     const existing = await db.query("SELECT id FROM settings WHERE setting_key = 'custom_vps_pricing'");
-    
+
     if (existing && existing.length > 0) {
       await db.query(
         "UPDATE settings SET setting_value = ?, setting_type = 'json', is_public = TRUE WHERE setting_key = 'custom_vps_pricing'",
@@ -620,7 +626,7 @@ router.put('/custom-vps-pricing', authenticate, requireRole('admin'), async (req
         [value]
       );
     }
-    
+
     res.json({ message: 'Custom VPS pricing saved' });
   } catch (error) {
     console.error('Update custom VPS pricing error:', error);
@@ -633,21 +639,21 @@ router.get('/stripe-key', async (req, res) => {
   try {
     const modeResult = await db.query("SELECT setting_value FROM settings WHERE setting_key = 'stripe_mode'");
     const enabledResult = await db.query("SELECT setting_value FROM settings WHERE setting_key = 'stripe_enabled'");
-    
+
     const mode = modeResult[0]?.setting_value || 'test';
     const enabled = enabledResult[0]?.setting_value === 'true';
-    
+
     if (!enabled) {
       return res.json({ enabled: false });
     }
 
     const keyName = mode === 'live' ? 'stripe_publishable_key_live' : 'stripe_publishable_key_test';
     const keyResult = await db.query("SELECT setting_value FROM settings WHERE setting_key = ?", [keyName]);
-    
-    res.json({ 
-      enabled: true, 
+
+    res.json({
+      enabled: true,
       publishableKey: keyResult[0]?.setting_value,
-      mode 
+      mode
     });
   } catch (error) {
     console.error('Get Stripe key error:', error);
@@ -659,16 +665,16 @@ router.get('/stripe-key', async (req, res) => {
 router.put('/page-visibility', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const { key, visible } = req.body;
-    
+
     if (!key) {
       return res.status(400).json({ error: 'Key is required' });
     }
-    
+
     const dbValue = visible ? 'true' : 'false';
-    
+
     // Check if setting exists
     const existing = await db.query('SELECT id FROM settings WHERE setting_key = ?', [key]);
-    
+
     if (existing && existing.length > 0) {
       await db.query(
         'UPDATE settings SET setting_value = ?, setting_type = ?, is_public = TRUE WHERE setting_key = ?',
@@ -680,7 +686,7 @@ router.put('/page-visibility', authenticate, requireRole('admin'), async (req, r
         [key, dbValue, 'boolean', 'pages']
       );
     }
-    
+
     res.json({ message: 'Page visibility updated' });
   } catch (error) {
     console.error('Update page visibility error:', error);
@@ -692,17 +698,17 @@ router.put('/page-visibility', authenticate, requireRole('admin'), async (req, r
 router.put('/bulk', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const { settings } = req.body;
-    
+
     if (!settings || typeof settings !== 'object') {
       return res.status(400).json({ error: 'Settings object is required' });
     }
-    
+
     for (const [key, value] of Object.entries(settings)) {
       const settingType = typeof value === 'boolean' ? 'boolean' : 'string';
       const dbValue = typeof value === 'boolean' ? (value ? 'true' : 'false') : String(value);
-      
+
       const existing = await db.query('SELECT id FROM settings WHERE setting_key = ?', [key]);
-      
+
       if (existing && existing.length > 0) {
         await db.query(
           'UPDATE settings SET setting_value = ?, setting_type = ?, is_public = TRUE WHERE setting_key = ?',
@@ -715,7 +721,7 @@ router.put('/bulk', authenticate, requireRole('admin'), async (req, res) => {
         );
       }
     }
-    
+
     res.json({ message: 'Settings updated' });
   } catch (error) {
     console.error('Bulk update settings error:', error);
@@ -730,7 +736,7 @@ router.get('/server-management', authenticate, requireRole('admin'), async (req,
       'plesk_enabled', 'plesk_hostname', 'plesk_port', 'plesk_username',
       'plesk_password', 'plesk_api_key', 'plesk_auth_method', 'plesk_verify_ssl'
     ];
-    
+
     const results = await db.query(
       `SELECT setting_key, setting_value FROM settings WHERE setting_key IN (${keys.map(() => '?').join(', ')})`,
       keys
@@ -759,7 +765,7 @@ router.get('/server-management', authenticate, requireRole('admin'), async (req,
 router.put('/server-management', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const config = req.body;
-    
+
     const keyMap = {
       enabled: 'plesk_enabled',
       hostname: 'plesk_hostname',
@@ -774,12 +780,12 @@ router.put('/server-management', authenticate, requireRole('admin'), async (req,
     for (const [key, value] of Object.entries(config)) {
       const dbKey = keyMap[key];
       if (!dbKey) continue;
-      
+
       const settingType = typeof value === 'boolean' ? 'boolean' : 'string';
       const dbValue = typeof value === 'boolean' ? (value ? 'true' : 'false') : String(value || '');
-      
+
       const existing = await db.query('SELECT id FROM settings WHERE setting_key = ?', [dbKey]);
-      
+
       if (existing && existing.length > 0) {
         await db.query(
           'UPDATE settings SET setting_value = ?, setting_type = ? WHERE setting_key = ?',
@@ -804,23 +810,23 @@ router.put('/server-management', authenticate, requireRole('admin'), async (req,
 router.post('/server-management/test', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const { hostname, port, username, password, api_key, auth_method, verify_ssl } = req.body;
-    
+
     if (!hostname) {
       return res.status(400).json({ error: 'Hostname is required' });
     }
 
     const https = require('https');
     const http = require('http');
-    
+
     // Build Plesk API URL
     const pleskUrl = `https://${hostname}:${port || 8443}/api/v2/server`;
-    
+
     // Build auth headers
     const headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json'
     };
-    
+
     if (auth_method === 'api_key' && api_key) {
       headers['X-API-Key'] = api_key;
     } else if (username && password) {
@@ -846,18 +852,18 @@ router.post('/server-management/test', authenticate, requireRole('admin'), async
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Plesk API error:', response.status, errorText);
-      return res.json({ 
-        success: false, 
-        error: `Connection failed: ${response.status} ${response.statusText}` 
+      return res.json({
+        success: false,
+        error: `Connection failed: ${response.status} ${response.statusText}`
       });
     }
 
     const serverData = await response.json();
-    
+
     // Get additional stats - domains count
     let domainsCount = 0;
     let clientsCount = 0;
-    
+
     try {
       const domainsResponse = await fetch(`https://${hostname}:${port || 8443}/api/v2/domains`, {
         method: 'GET',
@@ -898,9 +904,9 @@ router.post('/server-management/test', authenticate, requireRole('admin'), async
     });
   } catch (error) {
     console.error('Plesk connection test error:', error);
-    res.json({ 
-      success: false, 
-      error: error.message || 'Failed to connect to Plesk server' 
+    res.json({
+      success: false,
+      error: error.message || 'Failed to connect to Plesk server'
     });
   }
 });
@@ -910,12 +916,12 @@ router.get('/page-content/:slug', async (req, res) => {
   try {
     const slug = decodeURIComponent(req.params.slug);
     const key = `page_content_${slug.replace(/\//g, '_')}`;
-    
+
     const result = await db.query(
       "SELECT setting_value FROM settings WHERE setting_key = ?",
       [key]
     );
-    
+
     if (result && result.length > 0) {
       try {
         const pageData = JSON.parse(result[0].setting_value);
@@ -939,9 +945,9 @@ router.put('/page-content/:slug', authenticate, requireRole('admin'), async (req
     const { pageData } = req.body;
     const key = `page_content_${slug.replace(/\//g, '_')}`;
     const value = JSON.stringify(pageData);
-    
+
     const existing = await db.query("SELECT id FROM settings WHERE setting_key = ?", [key]);
-    
+
     if (existing && existing.length > 0) {
       await db.query(
         "UPDATE settings SET setting_value = ?, setting_type = 'json', is_public = TRUE WHERE setting_key = ?",
@@ -953,7 +959,7 @@ router.put('/page-content/:slug', authenticate, requireRole('admin'), async (req
         [key, value]
       );
     }
-    
+
     res.json({ message: 'Page content saved successfully' });
   } catch (error) {
     console.error('Update page content error:', error);
@@ -967,10 +973,10 @@ router.get('/header-footer', async (req, res) => {
     const settings = await db.query(
       "SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('header_settings', 'footer_settings')"
     );
-    
+
     let headerSettings = null;
     let footerSettings = null;
-    
+
     for (const s of settings) {
       try {
         if (s.setting_key === 'header_settings') {
@@ -982,7 +988,7 @@ router.get('/header-footer', async (req, res) => {
         console.error('Failed to parse setting:', s.setting_key, e);
       }
     }
-    
+
     res.json({ headerSettings, footerSettings });
   } catch (error) {
     console.error('Get header/footer settings error:', error);
@@ -994,11 +1000,11 @@ router.get('/header-footer', async (req, res) => {
 router.put('/header-footer', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const { headerSettings, footerSettings } = req.body;
-    
+
     if (headerSettings) {
       const headerValue = JSON.stringify(headerSettings);
       const existing = await db.query("SELECT id FROM settings WHERE setting_key = 'header_settings'");
-      
+
       if (existing && existing.length > 0) {
         await db.query(
           "UPDATE settings SET setting_value = ?, setting_type = 'json', is_public = TRUE WHERE setting_key = 'header_settings'",
@@ -1011,11 +1017,11 @@ router.put('/header-footer', authenticate, requireRole('admin'), async (req, res
         );
       }
     }
-    
+
     if (footerSettings) {
       const footerValue = JSON.stringify(footerSettings);
       const existing = await db.query("SELECT id FROM settings WHERE setting_key = 'footer_settings'");
-      
+
       if (existing && existing.length > 0) {
         await db.query(
           "UPDATE settings SET setting_value = ?, setting_type = 'json', is_public = TRUE WHERE setting_key = 'footer_settings'",
@@ -1028,7 +1034,7 @@ router.put('/header-footer', authenticate, requireRole('admin'), async (req, res
         );
       }
     }
-    
+
     res.json({ message: 'Header & footer settings updated successfully' });
   } catch (error) {
     console.error('Update header/footer settings error:', error);
