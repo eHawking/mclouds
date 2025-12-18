@@ -567,35 +567,66 @@ router.put('/email', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const settings = req.body;
 
-    console.log('Saving email settings:', Object.keys(settings));
+    console.log('=== SAVING EMAIL SETTINGS ===');
+    console.log('Settings keys:', Object.keys(settings));
+    console.log('Settings count:', Object.keys(settings).length);
+
+    let savedCount = 0;
+    const errors = [];
 
     for (const [key, value] of Object.entries(settings)) {
-      // Determine setting type based on value
-      let settingType = 'string';
-      let dbValue = '';
+      try {
+        // Determine setting type based on value
+        let settingType = 'string';
+        let dbValue = '';
 
-      if (typeof value === 'boolean') {
-        settingType = 'boolean';
-        dbValue = value ? 'true' : 'false';
-      } else if (value === null || value === undefined) {
-        dbValue = '';
-      } else {
-        dbValue = String(value);
+        if (typeof value === 'boolean') {
+          settingType = 'boolean';
+          dbValue = value ? 'true' : 'false';
+        } else if (value === null || value === undefined) {
+          dbValue = '';
+        } else {
+          dbValue = String(value);
+        }
+
+        console.log(`Saving: ${key} = "${dbValue}" (type: ${settingType})`);
+
+        const result = await db.query(
+          `INSERT INTO settings (setting_key, setting_value, setting_type, category, is_public)
+           VALUES (?, ?, ?, 'email', FALSE)
+           ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), setting_type = VALUES(setting_type)`,
+          [key, dbValue, settingType]
+        );
+
+        console.log(`Result for ${key}:`, result.affectedRows ? 'success' : 'no change');
+        savedCount++;
+      } catch (settingError) {
+        console.error(`Error saving ${key}:`, settingError.message);
+        errors.push({ key, error: settingError.message });
       }
-
-      await db.query(
-        `INSERT INTO settings (setting_key, setting_value, setting_type, category, is_public)
-         VALUES (?, ?, ?, 'email', FALSE)
-         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), setting_type = VALUES(setting_type)`,
-        [key, dbValue, settingType]
-      );
     }
 
-    console.log('Email settings saved successfully');
-    res.json({ message: 'Email settings saved' });
+    // Verify settings were saved by reading them back
+    const verifyResult = await db.query(
+      "SELECT COUNT(*) as count FROM settings WHERE category = 'email'"
+    );
+    console.log('Email settings in database:', verifyResult[0]?.count);
+
+    console.log(`=== SAVE COMPLETE: ${savedCount}/${Object.keys(settings).length} settings saved ===`);
+
+    if (errors.length > 0) {
+      console.error('Some settings failed to save:', errors);
+      return res.status(500).json({
+        error: 'Some settings failed to save',
+        details: errors,
+        savedCount
+      });
+    }
+
+    res.json({ message: 'Email settings saved', savedCount });
   } catch (error) {
     console.error('Update email settings error:', error);
-    res.status(500).json({ error: 'Failed to save email settings' });
+    res.status(500).json({ error: 'Failed to save email settings: ' + error.message });
   }
 });
 

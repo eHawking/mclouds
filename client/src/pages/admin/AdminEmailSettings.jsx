@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Helmet } from 'react-helmet-async'
-import { 
-  Save, Mail, Key, Eye, EyeOff, TestTube, CheckCircle, AlertCircle, 
+import {
+  Save, Mail, Key, Eye, EyeOff, TestTube, CheckCircle, AlertCircle,
   Send, Globe, Settings, Bell, ShoppingCart, Ticket, User, Lock
 } from 'lucide-react'
 import { settingsAPI } from '../../lib/api'
@@ -74,10 +74,14 @@ export default function AdminEmailSettings() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      await settingsAPI.updateEmailSettings(settings)
+      console.log('Saving email settings:', settings)
+      const response = await settingsAPI.updateEmailSettings(settings)
+      console.log('Save response:', response.data)
       toast.success('Email settings saved!')
     } catch (err) {
-      toast.error('Failed to save settings')
+      console.error('Failed to save email settings:', err)
+      console.error('Error response:', err.response?.data)
+      toast.error(err.response?.data?.error || 'Failed to save settings')
     } finally {
       setSaving(false)
     }
@@ -278,11 +282,10 @@ export default function AdminEmailSettings() {
             {emailEvents.map((event) => (
               <label
                 key={event.key}
-                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                  settings[event.key]
+                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${settings[event.key]
                     ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
                     : 'border-dark-200 dark:border-dark-700 hover:border-dark-300'
-                }`}
+                  }`}
               >
                 <div className="flex items-start gap-3">
                   <input
