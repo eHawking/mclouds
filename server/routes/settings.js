@@ -508,19 +508,52 @@ router.get('/email', authenticate, requireRole('admin'), async (req, res) => {
       'invoice_generated', 'payment_received', 'service_expiring', 'service_suspended'
     ];
 
+    // Build placeholders: (?, ?, ?, ...)
+    const placeholders = keys.map(() => '?').join(', ');
+
     const results = await db.query(
-      'SELECT setting_key, setting_value, setting_type FROM settings WHERE setting_key IN (?)',
-      [keys]
+      `SELECT setting_key, setting_value, setting_type FROM settings WHERE setting_key IN (${placeholders})`,
+      keys
     );
 
-    const settings = {};
-    results.forEach(row => {
-      let value = row.setting_value;
-      if (row.setting_type === 'boolean') {
-        value = value === 'true' || value === '1';
-      }
-      settings[row.setting_key] = value;
-    });
+    // Start with defaults
+    const settings = {
+      mailgun_enabled: false,
+      mailgun_api_key: '',
+      mailgun_domain: '',
+      mailgun_from_email: '',
+      mailgun_from_name: 'Magnetic Clouds',
+      mailgun_region: 'us',
+      welcome_email: true,
+      password_reset: true,
+      order_placed: true,
+      order_confirmed: true,
+      order_processing: true,
+      order_completed: true,
+      order_cancelled: true,
+      ticket_created: true,
+      ticket_replied: true,
+      ticket_closed: true,
+      invoice_generated: true,
+      payment_received: true,
+      service_expiring: true,
+      service_suspended: true
+    };
+
+    // Override with database values
+    if (results && Array.isArray(results)) {
+      results.forEach(row => {
+        if (row && row.setting_key) {
+          let value = row.setting_value;
+          if (row.setting_type === 'boolean') {
+            value = value === 'true' || value === '1';
+          }
+          settings[row.setting_key] = value;
+        }
+      });
+    }
+
+    console.log('Loaded email settings:', Object.keys(settings).length, 'keys');
 
     res.json({ settings });
   } catch (error) {
@@ -534,18 +567,31 @@ router.put('/email', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const settings = req.body;
 
+    console.log('Saving email settings:', Object.keys(settings));
+
     for (const [key, value] of Object.entries(settings)) {
-      const settingType = typeof value === 'boolean' ? 'boolean' : 'string';
-      const dbValue = typeof value === 'boolean' ? (value ? 'true' : 'false') : value;
+      // Determine setting type based on value
+      let settingType = 'string';
+      let dbValue = '';
+
+      if (typeof value === 'boolean') {
+        settingType = 'boolean';
+        dbValue = value ? 'true' : 'false';
+      } else if (value === null || value === undefined) {
+        dbValue = '';
+      } else {
+        dbValue = String(value);
+      }
 
       await db.query(
-        `INSERT INTO settings (setting_key, setting_value, setting_type, category)
-         VALUES (?, ?, ?, 'email')
+        `INSERT INTO settings (setting_key, setting_value, setting_type, category, is_public)
+         VALUES (?, ?, ?, 'email', FALSE)
          ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), setting_type = VALUES(setting_type)`,
         [key, dbValue, settingType]
       );
     }
 
+    console.log('Email settings saved successfully');
     res.json({ message: 'Email settings saved' });
   } catch (error) {
     console.error('Update email settings error:', error);
