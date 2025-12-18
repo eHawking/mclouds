@@ -97,8 +97,9 @@ async function authenticate(req, res, next) {
       user.canCreateRoles = false;
     }
 
-    // Legacy role check - if user has old 'admin' role but no role_id, treat as super admin
-    if (user.role === 'admin' && !user.role_id) {
+    // Legacy/fallback: if user has role='admin' but no valid permissions loaded
+    // (either no role_id, or role_id but roles table doesn't exist), treat as super admin
+    if (user.role === 'admin' && (!user.permissions || user.permissions.length === 0)) {
       user.isSuperAdmin = true;
       user.canCreateRoles = true;
       user.permissions = ['*']; // All permissions
