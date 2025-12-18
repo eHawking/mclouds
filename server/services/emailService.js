@@ -1,0 +1,729 @@
+const FormData = require('form-data');
+const Mailgun = require('mailgun.js');
+const db = require('../database/connection');
+const { v4: uuidv4 } = require('uuid');
+
+// Email templates
+const templates = {
+  welcome_email: {
+    subject: 'Welcome to {{site_name}}!',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">Welcome to {{site_name}}!</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>Hi {{user_name}},</p>
+          <p>Thank you for creating an account with us. We're excited to have you on board!</p>
+          <p>You can now:</p>
+          <ul>
+            <li>Browse our hosting plans and services</li>
+            <li>Register domain names</li>
+            <li>Manage your account and billing</li>
+            <li>Get 24/7 support from our team</li>
+          </ul>
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="{{site_url}}/dashboard" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">Go to Dashboard</a>
+          </p>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>© {{year}} {{site_name}}. All rights reserved.</p>
+        </div>
+      </div>
+    `
+  },
+
+  password_reset: {
+    subject: 'Reset Your Password - {{site_name}}',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">Password Reset</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>Hi {{user_name}},</p>
+          <p>We received a request to reset your password. Click the button below to create a new password:</p>
+          <p style="text-align: center; margin: 30px 0;">
+            <a href="{{reset_link}}" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">Reset Password</a>
+          </p>
+          <p style="color: #6b7280; font-size: 14px;">This link will expire in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>© {{year}} {{site_name}}. All rights reserved.</p>
+        </div>
+      </div>
+    `
+  },
+
+  order_placed: {
+    subject: 'Order Confirmation #{{order_id}} - {{site_name}}',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">Order Received!</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>Hi {{user_name}},</p>
+          <p>Thank you for your order! We've received your order and it's being processed.</p>
+          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <h3 style="margin-top: 0;">Order Details</h3>
+            <p><strong>Order ID:</strong> #{{order_id}}</p>
+            <p><strong>Date:</strong> {{order_date}}</p>
+            <p><strong>Total:</strong> {{order_total}}</p>
+            <p><strong>Payment Status:</strong> {{payment_status}}</p>
+          </div>
+          <h3>Items:</h3>
+          {{order_items}}
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="{{site_url}}/dashboard/orders" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Order</a>
+          </p>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>© {{year}} {{site_name}}. All rights reserved.</p>
+        </div>
+      </div>
+    `
+  },
+
+  order_confirmed: {
+    subject: 'Payment Confirmed - Order #{{order_id}} - {{site_name}}',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #10b981, #059669); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">✓ Payment Confirmed</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>Hi {{user_name}},</p>
+          <p>Great news! Your payment for order #{{order_id}} has been confirmed.</p>
+          <p>We're now processing your order and will notify you once your services are active.</p>
+          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <p><strong>Order ID:</strong> #{{order_id}}</p>
+            <p><strong>Amount Paid:</strong> {{order_total}}</p>
+          </div>
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="{{site_url}}/dashboard/orders" style="background: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Order</a>
+          </p>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>© {{year}} {{site_name}}. All rights reserved.</p>
+        </div>
+      </div>
+    `
+  },
+
+  order_completed: {
+    subject: 'Your Service is Active - Order #{{order_id}} - {{site_name}}',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #10b981, #059669); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">🎉 Service Activated!</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>Hi {{user_name}},</p>
+          <p>Your order #{{order_id}} has been completed and your services are now active!</p>
+          <p>You can access and manage your services from your dashboard.</p>
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="{{site_url}}/dashboard/services" style="background: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">Manage Services</a>
+          </p>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>© {{year}} {{site_name}}. All rights reserved.</p>
+        </div>
+      </div>
+    `
+  },
+
+  order_cancelled: {
+    subject: 'Order Cancelled - #{{order_id}} - {{site_name}}',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #ef4444, #dc2626); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">Order Cancelled</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>Hi {{user_name}},</p>
+          <p>Your order #{{order_id}} has been cancelled.</p>
+          <p>If you have any questions or need assistance, please contact our support team.</p>
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="{{site_url}}/support" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">Contact Support</a>
+          </p>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>© {{year}} {{site_name}}. All rights reserved.</p>
+        </div>
+      </div>
+    `
+  },
+
+  ticket_created: {
+    subject: 'Ticket Created #{{ticket_id}} - {{site_name}}',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">Support Ticket Created</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>Hi {{user_name}},</p>
+          <p>Your support ticket has been created successfully. Our team will respond as soon as possible.</p>
+          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <p><strong>Ticket ID:</strong> #{{ticket_id}}</p>
+            <p><strong>Subject:</strong> {{ticket_subject}}</p>
+            <p><strong>Priority:</strong> {{ticket_priority}}</p>
+          </div>
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="{{site_url}}/dashboard/tickets" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Ticket</a>
+          </p>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>© {{year}} {{site_name}}. All rights reserved.</p>
+        </div>
+      </div>
+    `
+  },
+
+  ticket_replied: {
+    subject: 'New Reply on Ticket #{{ticket_id}} - {{site_name}}',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">New Ticket Reply</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>Hi {{user_name}},</p>
+          <p>There's a new reply on your support ticket.</p>
+          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <p><strong>Ticket ID:</strong> #{{ticket_id}}</p>
+            <p><strong>Subject:</strong> {{ticket_subject}}</p>
+            <p><strong>Reply from:</strong> {{reply_from}}</p>
+            <div style="border-left: 3px solid #6366f1; padding-left: 15px; margin-top: 15px;">
+              {{reply_message}}
+            </div>
+          </div>
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="{{site_url}}/dashboard/tickets" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View & Reply</a>
+          </p>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>© {{year}} {{site_name}}. All rights reserved.</p>
+        </div>
+      </div>
+    `
+  },
+
+  ticket_closed: {
+    subject: 'Ticket Closed #{{ticket_id}} - {{site_name}}',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #10b981, #059669); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">Ticket Resolved</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>Hi {{user_name}},</p>
+          <p>Your support ticket #{{ticket_id}} has been marked as resolved and closed.</p>
+          <p>If you need further assistance, you can reopen this ticket or create a new one.</p>
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="{{site_url}}/dashboard/tickets" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Tickets</a>
+          </p>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>© {{year}} {{site_name}}. All rights reserved.</p>
+        </div>
+      </div>
+    `
+  },
+
+  invoice_generated: {
+    subject: 'New Invoice #{{invoice_id}} - {{site_name}}',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">New Invoice</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>Hi {{user_name}},</p>
+          <p>A new invoice has been generated for your account.</p>
+          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <p><strong>Invoice ID:</strong> #{{invoice_id}}</p>
+            <p><strong>Amount Due:</strong> {{invoice_amount}}</p>
+            <p><strong>Due Date:</strong> {{due_date}}</p>
+          </div>
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="{{site_url}}/dashboard/invoices" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">Pay Now</a>
+          </p>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>© {{year}} {{site_name}}. All rights reserved.</p>
+        </div>
+      </div>
+    `
+  },
+
+  payment_received: {
+    subject: 'Payment Received - {{site_name}}',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #10b981, #059669); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">✓ Payment Received</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>Hi {{user_name}},</p>
+          <p>We've received your payment. Thank you!</p>
+          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <p><strong>Amount:</strong> {{payment_amount}}</p>
+            <p><strong>Invoice:</strong> #{{invoice_id}}</p>
+            <p><strong>Date:</strong> {{payment_date}}</p>
+          </div>
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="{{site_url}}/dashboard/invoices" style="background: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Invoices</a>
+          </p>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>© {{year}} {{site_name}}. All rights reserved.</p>
+        </div>
+      </div>
+    `
+  },
+
+  service_expiring: {
+    subject: 'Service Expiring Soon - {{site_name}}',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #f59e0b, #d97706); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">⚠️ Service Expiring</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>Hi {{user_name}},</p>
+          <p>Your service <strong>{{service_name}}</strong> will expire on <strong>{{expiry_date}}</strong>.</p>
+          <p>To avoid any interruption, please renew your service before the expiration date.</p>
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="{{site_url}}/dashboard/services" style="background: #f59e0b; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">Renew Now</a>
+          </p>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>© {{year}} {{site_name}}. All rights reserved.</p>
+        </div>
+      </div>
+    `
+  },
+
+  service_suspended: {
+    subject: 'Service Suspended - {{site_name}}',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #ef4444, #dc2626); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">Service Suspended</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>Hi {{user_name}},</p>
+          <p>Your service <strong>{{service_name}}</strong> has been suspended due to non-payment.</p>
+          <p>To reactivate your service, please complete the pending payment.</p>
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="{{site_url}}/dashboard/invoices" style="background: #ef4444; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">Pay Now</a>
+          </p>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>© {{year}} {{site_name}}. All rights reserved.</p>
+        </div>
+      </div>
+    `
+  },
+
+  admin_new_order: {
+    subject: 'New Order Received #{{order_id}} - {{site_name}}',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">New Order Received</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>A new order has been placed:</p>
+          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <p><strong>Order ID:</strong> #{{order_id}}</p>
+            <p><strong>Customer:</strong> {{user_name}} ({{user_email}})</p>
+            <p><strong>Total:</strong> {{order_total}}</p>
+            <p><strong>Payment Method:</strong> {{payment_method}}</p>
+          </div>
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="{{site_url}}/admin/orders" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Order</a>
+          </p>
+        </div>
+      </div>
+    `
+  },
+
+  admin_new_ticket: {
+    subject: 'New Support Ticket #{{ticket_id}} - {{site_name}}',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">New Support Ticket</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>A new support ticket has been created:</p>
+          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <p><strong>Ticket ID:</strong> #{{ticket_id}}</p>
+            <p><strong>Customer:</strong> {{user_name}} ({{user_email}})</p>
+            <p><strong>Subject:</strong> {{ticket_subject}}</p>
+            <p><strong>Priority:</strong> {{ticket_priority}}</p>
+          </div>
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="{{site_url}}/admin/tickets" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Ticket</a>
+          </p>
+        </div>
+      </div>
+    `
+  },
+
+  test_email: {
+    subject: 'Test Email - {{site_name}}',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">Test Email</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>If you're receiving this email, your Mailgun configuration is working correctly!</p>
+          <p>Email sent at: {{timestamp}}</p>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>© {{year}} {{site_name}}. All rights reserved.</p>
+        </div>
+      </div>
+    `
+  }
+};
+
+class EmailService {
+  constructor() {
+    this.mailgun = null;
+    this.mg = null;
+  }
+
+  async init() {
+    try {
+      const settings = await this.getSettings();
+      if (settings.mailgun_enabled && settings.mailgun_api_key) {
+        const mailgun = new Mailgun(FormData);
+        const baseUrl = settings.mailgun_region === 'eu' 
+          ? 'https://api.eu.mailgun.net' 
+          : 'https://api.mailgun.net';
+        
+        this.mg = mailgun.client({
+          username: 'api',
+          key: settings.mailgun_api_key,
+          url: baseUrl
+        });
+        this.settings = settings;
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Email service init error:', error);
+      return false;
+    }
+  }
+
+  async getSettings() {
+    const keys = [
+      'mailgun_enabled', 'mailgun_api_key', 'mailgun_domain',
+      'mailgun_from_email', 'mailgun_from_name', 'mailgun_region',
+      'welcome_email', 'password_reset', 'order_placed', 'order_confirmed',
+      'order_processing', 'order_completed', 'order_cancelled',
+      'ticket_created', 'ticket_replied', 'ticket_closed',
+      'invoice_generated', 'payment_received', 'service_expiring', 'service_suspended',
+      'site_name', 'site_url'
+    ];
+
+    const results = await db.query(
+      'SELECT setting_key, setting_value, value_type FROM settings WHERE setting_key IN (?)',
+      [keys]
+    );
+
+    const settings = {
+      site_name: 'Magnetic Clouds',
+      site_url: process.env.SITE_URL || 'https://clouds.hassanscode.com'
+    };
+    
+    results.forEach(row => {
+      let value = row.setting_value;
+      if (row.value_type === 'boolean') {
+        value = value === 'true' || value === '1';
+      }
+      settings[row.setting_key] = value;
+    });
+
+    return settings;
+  }
+
+  async isEnabled(eventType) {
+    const settings = await this.getSettings();
+    return settings.mailgun_enabled && settings[eventType] !== false;
+  }
+
+  replaceVariables(template, variables) {
+    let result = template;
+    for (const [key, value] of Object.entries(variables)) {
+      result = result.replace(new RegExp(`{{${key}}}`, 'g'), value || '');
+    }
+    return result;
+  }
+
+  async send(to, templateName, variables = {}, userId = null) {
+    const emailUuid = uuidv4();
+    let subject = '';
+    let html = '';
+    
+    try {
+      const template = templates[templateName];
+      if (!template) {
+        console.error(`Template ${templateName} not found`);
+        return false;
+      }
+
+      // Add default variables
+      const settings = await this.getSettings();
+      const allVariables = {
+        site_name: settings.site_name || 'Magnetic Clouds',
+        site_url: settings.site_url || 'https://clouds.hassanscode.com',
+        year: new Date().getFullYear(),
+        ...variables
+      };
+
+      subject = this.replaceVariables(template.subject, allVariables);
+      html = this.replaceVariables(template.html, allVariables);
+
+      // Always log email attempt first
+      await this.logEmail({
+        uuid: emailUuid,
+        user_id: userId,
+        recipient_email: to,
+        recipient_name: variables.user_name || null,
+        subject,
+        template: templateName,
+        html_content: html,
+        status: 'pending',
+        metadata: JSON.stringify(variables)
+      });
+
+      // Check if Mailgun is enabled
+      if (!await this.isEnabled(templateName)) {
+        console.log(`Email ${templateName} is disabled or Mailgun not configured - logged only`);
+        await this.updateEmailLog(emailUuid, 'failed', 'Mailgun not configured or email type disabled');
+        return false;
+      }
+
+      // Initialize if needed
+      if (!this.mg) {
+        const initialized = await this.init();
+        if (!initialized) {
+          console.log('Mailgun not initialized - email logged');
+          await this.updateEmailLog(emailUuid, 'failed', 'Mailgun initialization failed');
+          return false;
+        }
+      }
+
+      const result = await this.mg.messages.create(this.settings.mailgun_domain, {
+        from: `${this.settings.mailgun_from_name} <${this.settings.mailgun_from_email}>`,
+        to: [to],
+        subject: subject,
+        html: html
+      });
+
+      // Update log to sent
+      await this.updateEmailLog(emailUuid, 'sent');
+
+      console.log(`Email sent: ${templateName} to ${to}`, result.id);
+      return true;
+    } catch (error) {
+      console.error('Email send error:', error);
+      // Update log to failed
+      await this.updateEmailLog(emailUuid, 'failed', error.message);
+      return false;
+    }
+  }
+
+  async logEmail({ uuid, user_id, recipient_email, recipient_name, subject, template, html_content, status, metadata }) {
+    try {
+      await db.query(`
+        INSERT INTO email_logs (uuid, user_id, recipient_email, recipient_name, subject, template, html_content, status, metadata)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [uuid, user_id, recipient_email, recipient_name, subject, template, html_content, status, metadata]);
+    } catch (error) {
+      // Silently fail if table doesn't exist
+      console.error('Email log error:', error.message);
+    }
+  }
+
+  async updateEmailLog(uuid, status, errorMessage = null) {
+    try {
+      if (status === 'sent') {
+        await db.query(
+          'UPDATE email_logs SET status = ?, sent_at = NOW() WHERE uuid = ?',
+          [status, uuid]
+        );
+      } else {
+        await db.query(
+          'UPDATE email_logs SET status = ?, error_message = ? WHERE uuid = ?',
+          [status, errorMessage, uuid]
+        );
+      }
+    } catch (error) {
+      // Silently fail if table doesn't exist
+      console.error('Email log update error:', error.message);
+    }
+  }
+
+  // Convenience methods for different events
+  async sendWelcome(user) {
+    return this.send(user.email, 'welcome_email', {
+      user_name: user.first_name || user.email
+    }, user.id);
+  }
+
+  async sendPasswordReset(user, resetLink) {
+    return this.send(user.email, 'password_reset', {
+      user_name: user.first_name || user.email,
+      reset_link: resetLink
+    }, user.id);
+  }
+
+  async sendOrderPlaced(order, user) {
+    const itemsHtml = order.items?.map(item => 
+      `<p style="margin: 5px 0;">• ${item.name || item.product_type} - $${item.price}</p>`
+    ).join('') || '';
+
+    return this.send(user.email, 'order_placed', {
+      user_name: user.first_name || user.email,
+      order_id: order.uuid || order.id,
+      order_date: new Date().toLocaleDateString(),
+      order_total: `$${order.total?.toFixed(2) || '0.00'}`,
+      payment_status: order.payment_status || 'Pending',
+      order_items: itemsHtml
+    }, user.id);
+  }
+
+  async sendOrderConfirmed(order, user) {
+    return this.send(user.email, 'order_confirmed', {
+      user_name: user.first_name || user.email,
+      order_id: order.uuid || order.id,
+      order_total: `$${order.total?.toFixed(2) || '0.00'}`
+    }, user.id);
+  }
+
+  async sendOrderCompleted(order, user) {
+    return this.send(user.email, 'order_completed', {
+      user_name: user.first_name || user.email,
+      order_id: order.uuid || order.id
+    }, user.id);
+  }
+
+  async sendOrderCancelled(order, user) {
+    return this.send(user.email, 'order_cancelled', {
+      user_name: user.first_name || user.email,
+      order_id: order.uuid || order.id
+    }, user.id);
+  }
+
+  async sendTicketCreated(ticket, user) {
+    return this.send(user.email, 'ticket_created', {
+      user_name: user.first_name || user.email,
+      ticket_id: ticket.id,
+      ticket_subject: ticket.subject,
+      ticket_priority: ticket.priority
+    }, user.id);
+  }
+
+  async sendTicketReplied(ticket, user, reply, replyFrom) {
+    return this.send(user.email, 'ticket_replied', {
+      user_name: user.first_name || user.email,
+      ticket_id: ticket.id,
+      ticket_subject: ticket.subject,
+      reply_from: replyFrom,
+      reply_message: reply.message?.substring(0, 500) || ''
+    }, user.id);
+  }
+
+  async sendTicketClosed(ticket, user) {
+    return this.send(user.email, 'ticket_closed', {
+      user_name: user.first_name || user.email,
+      ticket_id: ticket.id
+    }, user.id);
+  }
+
+  async sendTestEmail(to) {
+    // Force init for test
+    await this.init();
+    if (!this.mg) {
+      throw new Error('Mailgun not configured');
+    }
+
+    const emailUuid = uuidv4();
+    const settings = await this.getSettings();
+    const template = templates.test_email;
+    const variables = {
+      site_name: settings.site_name || 'Magnetic Clouds',
+      timestamp: new Date().toISOString(),
+      year: new Date().getFullYear()
+    };
+
+    const subject = this.replaceVariables(template.subject, variables);
+    const html = this.replaceVariables(template.html, variables);
+
+    // Log before sending
+    await this.logEmail({
+      uuid: emailUuid,
+      user_id: null,
+      recipient_email: to,
+      recipient_name: null,
+      subject,
+      template: 'test_email',
+      html_content: html,
+      status: 'pending',
+      metadata: JSON.stringify(variables)
+    });
+
+    try {
+      const result = await this.mg.messages.create(this.settings.mailgun_domain, {
+        from: `${this.settings.mailgun_from_name} <${this.settings.mailgun_from_email}>`,
+        to: [to],
+        subject: subject,
+        html: html
+      });
+
+      await this.updateEmailLog(emailUuid, 'sent');
+      return result;
+    } catch (error) {
+      await this.updateEmailLog(emailUuid, 'failed', error.message);
+      throw error;
+    }
+  }
+
+  // Admin notifications
+  async notifyAdminNewOrder(order, user) {
+    const admins = await db.query("SELECT email FROM users WHERE role = 'admin'");
+    for (const admin of admins) {
+      await this.send(admin.email, 'admin_new_order', {
+        order_id: order.uuid || order.id,
+        user_name: `${user.first_name} ${user.last_name}`,
+        user_email: user.email,
+        order_total: `$${order.total?.toFixed(2) || '0.00'}`,
+        payment_method: order.payment_method
+      });
+    }
+  }
+
+  async notifyAdminNewTicket(ticket, user) {
+    const admins = await db.query("SELECT email FROM users WHERE role = 'admin'");
+    for (const admin of admins) {
+      await this.send(admin.email, 'admin_new_ticket', {
+        ticket_id: ticket.id,
+        user_name: `${user.first_name} ${user.last_name}`,
+        user_email: user.email,
+        ticket_subject: ticket.subject,
+        ticket_priority: ticket.priority
+      });
+    }
+  }
+}
+
+module.exports = new EmailService();
