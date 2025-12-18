@@ -280,4 +280,16 @@ export const nobotAPI = {
   sendMessage: (uuid, conversationId, message) => api.post(`/nobot/${uuid}/conversations/${conversationId}/message`, { message }),
 }
 
+// Roles API
+export const rolesAPI = {
+  getRoles: () => api.get('/roles'),
+  getRole: (uuid) => api.get(`/roles/${uuid}`),
+  getPermissions: () => api.get('/roles/permissions'),
+  createRole: (data) => api.post('/roles', data),
+  updateRole: (uuid, data) => api.put(`/roles/${uuid}`, data),
+  deleteRole: (uuid) => api.delete(`/roles/${uuid}`),
+  getAdminUsers: () => api.get('/roles/admin-users/list'),
+  assignRole: (userUuid, roleId) => api.put(`/roles/assign/${userUuid}`, { role_id: roleId }),
+}
+
 export default api

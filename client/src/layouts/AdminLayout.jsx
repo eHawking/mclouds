@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Users, Package, ShoppingCart, Ticket,
   Globe, Settings, FileText, Image, LogOut, Menu, X,
   Moon, Sun, Bell, ChevronDown, ChevronRight, Bot, MessageSquare, DollarSign, CreditCard, Sliders, Mail, Send, Receipt,
-  Check, CheckCheck, ShoppingBag, CreditCard as PaymentIcon, AlertCircle, User, Server, Shield
+  Check, CheckCheck, ShoppingBag, CreditCard as PaymentIcon, AlertCircle, User, Server, Shield, Crown
 } from 'lucide-react'
 import { useAuthStore, useThemeStore } from '../store/useStore'
 import { settingsAPI, adminAPI } from '../lib/api'
@@ -40,6 +40,15 @@ const menuGroups = [
       { to: '/admin/payment-gateway', icon: CreditCard, label: 'Payment Gateways' },
       { to: '/admin/customize-plans', icon: Sliders, label: 'Customize Plans' },
       { to: '/admin/domains', icon: Globe, label: 'Domain TLDs' },
+    ]
+  },
+  {
+    id: 'roles',
+    label: 'Roles & Admins',
+    icon: Crown,
+    to: '/admin/roles',
+    children: [
+      { to: '/admin/admins', icon: Users, label: 'Admin Users' },
     ]
   },
   {

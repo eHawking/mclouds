@@ -102,6 +102,8 @@ import AdminServiceManage from './pages/admin/AdminServiceManage'
 import AdminUserManage from './pages/admin/AdminUserManage'
 import AdminHeaderFooter from './pages/admin/AdminHeaderFooter'
 import AdminSecurity from './pages/admin/AdminSecurity'
+import AdminRoles from './pages/admin/AdminRoles'
+import AdminAdmins from './pages/admin/AdminAdmins'
 import AdminPageEditor from './pages/admin/AdminPageEditor'
 import AdminLogin from './pages/admin/AdminLogin'
 import ProposalView from './pages/ProposalView'
@@ -317,6 +319,8 @@ function App() {
           <Route path="email-logs" element={<AdminEmailLogs />} />
           <Route path="server-management" element={<AdminServerManagement />} />
           <Route path="security" element={<AdminSecurity />} />
+          <Route path="roles" element={<AdminRoles />} />
+          <Route path="admins" element={<AdminAdmins />} />
         </Route>
 
         {/* 404 */}

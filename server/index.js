@@ -25,6 +25,7 @@ const paymentRoutes = require('./routes/payments');
 const proposalRoutes = require('./routes/proposals');
 const nobotRoutes = require('./routes/nobot');
 const twofaRoutes = require('./routes/twofa');
+const rolesRoutes = require('./routes/roles');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -89,6 +90,7 @@ app.use('/api', proposalRoutes);
 app.use('/api/nobot', nobotRoutes);
 app.use('/api/admin/nobot', nobotRoutes);
 app.use('/api/2fa', twofaRoutes);
+app.use('/api/roles', rolesRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

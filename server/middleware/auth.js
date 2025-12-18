@@ -3,17 +3,65 @@ const db = require('../database/connection');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
+// Cache for role permissions (refresh every 5 minutes)
+let permissionCache = {};
+let cacheTimestamp = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Load all role permissions into cache
+async function loadPermissionCache() {
+  if (Date.now() - cacheTimestamp < CACHE_TTL && Object.keys(permissionCache).length > 0) {
+    return;
+  }
+
+  try {
+    const results = await db.query(`
+      SELECT r.id as role_id, r.slug as role_slug, r.is_system, r.can_create_roles,
+             GROUP_CONCAT(p.slug) as permissions
+      FROM roles r
+      LEFT JOIN role_permissions rp ON r.id = rp.role_id
+      LEFT JOIN permissions p ON rp.permission_id = p.id
+      GROUP BY r.id
+    `);
+
+    permissionCache = {};
+    for (const row of results) {
+      permissionCache[row.role_id] = {
+        slug: row.role_slug,
+        isSystem: !!row.is_system,
+        canCreateRoles: !!row.can_create_roles,
+        permissions: row.permissions ? row.permissions.split(',') : []
+      };
+    }
+    cacheTimestamp = Date.now();
+  } catch (error) {
+    console.error('Failed to load permission cache:', error.message);
+  }
+}
+
+// Clear cache when roles/permissions are modified
+function clearPermissionCache() {
+  permissionCache = {};
+  cacheTimestamp = 0;
+}
+
 async function authenticate(req, res, next) {
   try {
     const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
-    
+
     if (!token) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    const users = await db.query('SELECT id, uuid, email, first_name, last_name, role, status FROM users WHERE uuid = ?', [decoded.uuid]);
-    
+    const users = await db.query(`
+      SELECT u.id, u.uuid, u.email, u.first_name, u.last_name, u.role, u.status, u.role_id,
+             r.slug as role_slug, r.is_system, r.can_create_roles
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      WHERE u.uuid = ?
+    `, [decoded.uuid]);
+
     if (!users.length) {
       return res.status(401).json({ error: 'User not found' });
     }
@@ -22,7 +70,30 @@ async function authenticate(req, res, next) {
       return res.status(403).json({ error: 'Account is not active' });
     }
 
-    req.user = users[0];
+    const user = users[0];
+
+    // Load permissions from cache
+    await loadPermissionCache();
+
+    // Attach permissions to user
+    if (user.role_id && permissionCache[user.role_id]) {
+      user.permissions = permissionCache[user.role_id].permissions;
+      user.isSuperAdmin = permissionCache[user.role_id].isSystem;
+      user.canCreateRoles = permissionCache[user.role_id].canCreateRoles || user.isSuperAdmin;
+    } else {
+      user.permissions = [];
+      user.isSuperAdmin = false;
+      user.canCreateRoles = false;
+    }
+
+    // Legacy role check - if user has old 'admin' role but no role_id, treat as super admin
+    if (user.role === 'admin' && !user.role_id) {
+      user.isSuperAdmin = true;
+      user.canCreateRoles = true;
+      user.permissions = ['*']; // All permissions
+    }
+
+    req.user = user;
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
@@ -32,23 +103,69 @@ async function authenticate(req, res, next) {
   }
 }
 
+// Check if user has required role(s)
 function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    
-    if (!roles.includes(req.user.role)) {
+
+    // Super admin bypasses role check
+    if (req.user.isSuperAdmin) {
+      return next();
+    }
+
+    if (!roles.includes(req.user.role) && !roles.includes(req.user.role_slug)) {
       return res.status(403).json({ error: 'Access denied' });
     }
-    
+
+    next();
+  };
+}
+
+// Check if user has required permission(s)
+function requirePermission(...permissions) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Super admin has all permissions
+    if (req.user.isSuperAdmin || (req.user.permissions && req.user.permissions.includes('*'))) {
+      return next();
+    }
+
+    // Check if user has at least one of the required permissions
+    const hasPermission = permissions.some(p =>
+      req.user.permissions && req.user.permissions.includes(p)
+    );
+
+    if (!hasPermission) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    next();
+  };
+}
+
+// Check if user is super admin (for delete operations, role management, etc.)
+function requireSuperAdmin() {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    if (!req.user.isSuperAdmin) {
+      return res.status(403).json({ error: 'Super Admin access required' });
+    }
+
     next();
   };
 }
 
 function optionalAuth(req, res, next) {
   const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
-  
+
   if (!token) {
     return next();
   }
@@ -79,6 +196,10 @@ function generateToken(user) {
 module.exports = {
   authenticate,
   requireRole,
+  requirePermission,
+  requireSuperAdmin,
   optionalAuth,
-  generateToken
+  generateToken,
+  clearPermissionCache
 };
+
