@@ -9,50 +9,9 @@ const router = express.Router();
 // All routes require authentication
 router.use(authenticate);
 
-// Helper to check if roles table exists
-async function tablesExist() {
-    try {
-        const result = await db.query(`
-      SELECT COUNT(*) as count FROM information_schema.tables 
-      WHERE table_schema = DATABASE() AND table_name = 'roles'
-    `);
-        return result[0]?.count > 0;
-    } catch {
-        return false;
-    }
-}
-
-// Middleware to check admin access (super admin or has roles.view permission)
-function requireRolesAccess(req, res, next) {
-    if (!req.user) {
-        return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    // Legacy admin (no role_id) or super admin has full access
-    if (req.user.isSuperAdmin || (req.user.role === 'admin' && !req.user.role_id)) {
-        return next();
-    }
-
-    // Check for roles.view permission
-    if (req.user.permissions && req.user.permissions.includes('roles.view')) {
-        return next();
-    }
-
-    return res.status(403).json({ error: 'Permission denied' });
-}
-
 // Get all roles
-router.get('/', requireRolesAccess, async (req, res) => {
+router.get('/', requirePermission('roles.view'), async (req, res) => {
     try {
-        // Check if tables exist
-        const exists = await tablesExist();
-        if (!exists) {
-            return res.json({
-                roles: [],
-                message: 'RBAC tables not found. Please run the migration: server/database/migrations/add_rbac_system.sql'
-            });
-        }
-
         const roles = await db.query(`
       SELECT r.*, 
              (SELECT COUNT(*) FROM users WHERE role_id = r.id) as user_count,
@@ -76,19 +35,13 @@ router.get('/', requireRolesAccess, async (req, res) => {
         res.json({ roles });
     } catch (error) {
         console.error('Get roles error:', error);
-        res.status(500).json({ error: 'Failed to fetch roles. Make sure the RBAC migration has been run.' });
+        res.status(500).json({ error: 'Failed to fetch roles' });
     }
 });
 
 // Get all available permissions (grouped by department)
-router.get('/permissions', requireRolesAccess, async (req, res) => {
+router.get('/permissions', requirePermission('roles.view'), async (req, res) => {
     try {
-        // Check if tables exist
-        const exists = await tablesExist();
-        if (!exists) {
-            return res.json({ permissions: [], grouped: {} });
-        }
-
         const permissions = await db.query(`
       SELECT id, name, slug, department, description
       FROM permissions
@@ -112,7 +65,7 @@ router.get('/permissions', requireRolesAccess, async (req, res) => {
 });
 
 // Get single role
-router.get('/:uuid', requireRolesAccess, async (req, res) => {
+router.get('/:uuid', requirePermission('roles.view'), async (req, res) => {
     try {
         const roles = await db.query(`
       SELECT r.*, u.first_name as created_by_name, u.last_name as created_by_lastname
