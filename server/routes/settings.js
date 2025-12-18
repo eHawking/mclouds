@@ -103,37 +103,7 @@ router.put('/', authenticate, requireRole('admin'), async (req, res) => {
   }
 });
 
-// Create or update single setting (admin only)
-router.put('/:key', authenticate, requireRole('admin'), async (req, res) => {
-  try {
-    const { key } = req.params;
-    const { value, type = 'string', category = 'general', is_public = false } = req.body;
-
-    const settingValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
-
-    await db.query(`
-      INSERT INTO settings (setting_key, setting_value, setting_type, category, is_public)
-      VALUES (?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE setting_value = ?, setting_type = ?, category = ?, is_public = ?
-    `, [key, settingValue, type, category, is_public, settingValue, type, category, is_public]);
-
-    res.json({ message: 'Setting updated successfully' });
-  } catch (error) {
-    console.error('Update setting error:', error);
-    res.status(500).json({ error: 'Failed to update setting' });
-  }
-});
-
-// Delete setting (admin only)
-router.delete('/:key', authenticate, requireRole('admin'), async (req, res) => {
-  try {
-    await db.query('DELETE FROM settings WHERE setting_key = ?', [req.params.key]);
-    res.json({ message: 'Setting deleted successfully' });
-  } catch (error) {
-    console.error('Delete setting error:', error);
-    res.status(500).json({ error: 'Failed to delete setting' });
-  }
-});
+// NOTE: Wildcard routes (/:key) moved to end of file to prevent route conflicts
 
 // Get datacenters (public)
 router.get('/datacenters', async (req, res) => {
@@ -1116,6 +1086,41 @@ router.put('/header-footer', authenticate, requireRole('admin'), async (req, res
   } catch (error) {
     console.error('Update header/footer settings error:', error);
     res.status(500).json({ error: 'Failed to update header/footer settings' });
+  }
+});
+
+// ==================== WILDCARD ROUTES (must be last!) ====================
+// These routes use /:key which matches ANY path, so they must come after all specific routes
+
+// Create or update single setting (admin only)
+router.put('/:key', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    const { key } = req.params;
+    const { value, type = 'string', category = 'general', is_public = false } = req.body;
+
+    const settingValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+
+    await db.query(`
+      INSERT INTO settings (setting_key, setting_value, setting_type, category, is_public)
+      VALUES (?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE setting_value = ?, setting_type = ?, category = ?, is_public = ?
+    `, [key, settingValue, type, category, is_public, settingValue, type, category, is_public]);
+
+    res.json({ message: 'Setting updated successfully' });
+  } catch (error) {
+    console.error('Update setting error:', error);
+    res.status(500).json({ error: 'Failed to update setting' });
+  }
+});
+
+// Delete setting (admin only)
+router.delete('/:key', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    await db.query('DELETE FROM settings WHERE setting_key = ?', [req.params.key]);
+    res.json({ message: 'Setting deleted successfully' });
+  } catch (error) {
+    console.error('Delete setting error:', error);
+    res.status(500).json({ error: 'Failed to delete setting' });
   }
 });
 
