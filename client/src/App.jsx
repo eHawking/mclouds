@@ -74,6 +74,7 @@ import Profile from './pages/dashboard/Profile'
 import Orders from './pages/dashboard/Orders'
 import NoBotSetup from './pages/dashboard/NoBotSetup'
 import ServiceManagement from './pages/dashboard/ServiceManagement'
+import UserSecurity from './pages/dashboard/Security'
 
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard'
@@ -100,6 +101,7 @@ import AdminUserDetail from './pages/admin/AdminUserDetail'
 import AdminServiceManage from './pages/admin/AdminServiceManage'
 import AdminUserManage from './pages/admin/AdminUserManage'
 import AdminHeaderFooter from './pages/admin/AdminHeaderFooter'
+import AdminSecurity from './pages/admin/AdminSecurity'
 import AdminPageEditor from './pages/admin/AdminPageEditor'
 import AdminLogin from './pages/admin/AdminLogin'
 import ProposalView from './pages/ProposalView'
@@ -276,6 +278,7 @@ function App() {
           <Route path="tickets/new" element={<NewTicket />} />
           <Route path="tickets/:uuid" element={<TicketDetail />} />
           <Route path="profile" element={<Profile />} />
+          <Route path="security" element={<UserSecurity />} />
           <Route path="nobot" element={<NoBotSetup />} />
           <Route path="nobot/:uuid" element={<NoBotSetup />} />
           <Route path="nobot/:uuid/inbox" element={<NoBotSetup />} />
@@ -313,6 +316,7 @@ function App() {
           <Route path="nobot-services" element={<AdminNoBotServices />} />
           <Route path="email-logs" element={<AdminEmailLogs />} />
           <Route path="server-management" element={<AdminServerManagement />} />
+          <Route path="security" element={<AdminSecurity />} />
         </Route>
 
         {/* 404 */}

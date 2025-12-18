@@ -2,11 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { 
-  LayoutDashboard, Users, Package, ShoppingCart, Ticket, 
+import {
+  LayoutDashboard, Users, Package, ShoppingCart, Ticket,
   Globe, Settings, FileText, Image, LogOut, Menu, X,
   Moon, Sun, Bell, ChevronDown, ChevronRight, Bot, MessageSquare, DollarSign, CreditCard, Sliders, Mail, Send, Receipt,
-  Check, CheckCheck, ShoppingBag, CreditCard as PaymentIcon, AlertCircle, User, Server
+  Check, CheckCheck, ShoppingBag, CreditCard as PaymentIcon, AlertCircle, User, Server, Shield
 } from 'lucide-react'
 import { useAuthStore, useThemeStore } from '../store/useStore'
 import { settingsAPI, adminAPI } from '../lib/api'
@@ -53,6 +53,7 @@ const menuGroups = [
       { to: '/admin/server-management', icon: Server, label: 'Server Management' },
       { to: '/admin/email-settings', icon: Mail, label: 'Email Settings' },
       { to: '/admin/email-logs', icon: Mail, label: 'Email Logs' },
+      { to: '/admin/security', icon: Shield, label: 'Security' },
       { to: '/admin/nobot-services', icon: Bot, label: 'NoBot Services' },
       { to: '/admin/ai-agent', icon: Bot, label: 'AI Agents' },
     ]
@@ -96,8 +97,8 @@ export default function AdminLayout() {
 
   // Toggle menu expansion
   const toggleMenu = (menuId) => {
-    setExpandedMenus(prev => 
-      prev.includes(menuId) 
+    setExpandedMenus(prev =>
+      prev.includes(menuId)
         ? prev.filter(id => id !== menuId)
         : [...prev, menuId]
     )
@@ -107,7 +108,7 @@ export default function AdminLayout() {
   const isMenuActive = (group) => {
     return group.children.some(child => location.pathname === child.to || location.pathname.startsWith(child.to + '/'))
   }
-  
+
   const { data: settingsData } = useQuery({
     queryKey: ['publicSettings'],
     queryFn: () => settingsAPI.getPublic()
@@ -221,8 +222,8 @@ export default function AdminLayout() {
               className={({ isActive }) => clsx(
                 "flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200",
                 sidebarCollapsed && "justify-center px-2",
-                isActive 
-                  ? "bg-primary-500 text-white shadow-lg" 
+                isActive
+                  ? "bg-primary-500 text-white shadow-lg"
                   : "text-dark-300 hover:bg-dark-800 hover:text-white"
               )}
               title={sidebarCollapsed ? link.label : undefined}
@@ -237,7 +238,7 @@ export default function AdminLayout() {
             const isExpanded = expandedMenus.includes(group.id)
             const hasActiveChild = isMenuActive(group)
             const isMainActive = location.pathname === group.to
-            
+
             return (
               <div key={group.id} className="mt-2">
                 {/* Group Header - Split: Label navigates, Chevron toggles */}
@@ -288,8 +289,8 @@ export default function AdminLayout() {
                               onClick={() => setSidebarOpen(false)}
                               className={({ isActive }) => clsx(
                                 "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
-                                isActive 
-                                  ? "bg-primary-500 text-white shadow-lg" 
+                                isActive
+                                  ? "bg-primary-500 text-white shadow-lg"
                                   : "text-dark-400 hover:bg-dark-800 hover:text-white"
                               )}
                             >
@@ -318,8 +319,8 @@ export default function AdminLayout() {
               className={({ isActive }) => clsx(
                 "flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200",
                 sidebarCollapsed && "justify-center px-2",
-                isActive 
-                  ? "bg-primary-500 text-white shadow-lg" 
+                isActive
+                  ? "bg-primary-500 text-white shadow-lg"
                   : "text-dark-300 hover:bg-dark-800 hover:text-white"
               )}
               title={sidebarCollapsed ? link.label : undefined}
@@ -332,24 +333,11 @@ export default function AdminLayout() {
 
         {/* Bottom actions */}
         <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-dark-700">
-          {/* Collapse Toggle - Arrow only, centered */}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="hidden lg:flex w-full items-center justify-center p-2 rounded-xl transition-all duration-300 bg-dark-800 hover:bg-dark-700"
-          >
-            <div className={clsx(
-              "w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center shadow-lg shadow-primary-500/30 transition-transform duration-300",
-              sidebarCollapsed && "rotate-180"
-            )}>
-              <ChevronRight className="w-4 h-4 text-white" />
-            </div>
-          </button>
-          
           {/* Logout Button */}
           <button
             onClick={handleLogout}
             className={clsx(
-              "w-full mt-2 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl transition-all",
+              "w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl transition-all",
               "bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300",
               "border border-red-500/20 hover:border-red-500/30"
             )}
@@ -389,10 +377,10 @@ export default function AdminLayout() {
               >
                 {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
-              
+
               {/* Notifications */}
               <div className="relative" ref={notificationRef}>
-                <button 
+                <button
                   onClick={() => setNotificationsOpen(!notificationsOpen)}
                   className="p-2 hover:bg-dark-100 dark:hover:bg-dark-800 rounded-lg transition-colors relative"
                 >
@@ -440,7 +428,7 @@ export default function AdminLayout() {
                           notifications.map((notification) => {
                             const IconComponent = NOTIFICATION_ICONS[notification.type] || Bell
                             const colorClass = NOTIFICATION_COLORS[notification.color] || NOTIFICATION_COLORS.primary
-                            
+
                             return (
                               <div
                                 key={notification.uuid}

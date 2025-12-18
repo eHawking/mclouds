@@ -41,7 +41,7 @@ async function findOrCreateOAuthUser(profile, provider) {
 
     // Check if user exists by email
     let users = await db.query('SELECT * FROM users WHERE email = ?', [email]);
-    
+
     if (users.length) {
       // Update OAuth provider info - try to update provider_id column, ignore if doesn't exist
       try {
@@ -70,7 +70,7 @@ async function findOrCreateOAuthUser(profile, provider) {
         attempts++;
       }
     }
-    
+
     const firstName = profile.name?.givenName || profile.displayName?.split(' ')[0] || 'User';
     const lastName = profile.name?.familyName || profile.displayName?.split(' ').slice(1).join(' ') || '';
     const avatar = profile.photos?.[0]?.value || null;
@@ -144,17 +144,17 @@ router.get('/google', passport.authenticate('google', {
 router.get('/google/callback', (req, res, next) => {
   passport.authenticate('google', { session: false }, (err, user, info) => {
     const clientUrl = getClientUrl();
-    
+
     if (err) {
       console.error('Google OAuth error:', err);
       return res.redirect(`${clientUrl}/login?error=${encodeURIComponent(err.message || 'oauth_failed')}`);
     }
-    
+
     if (!user) {
       console.error('Google OAuth: No user returned', info);
       return res.redirect(`${clientUrl}/login?error=oauth_failed`);
     }
-    
+
     try {
       const token = generateToken({ uuid: user.uuid, email: user.email, role: user.role });
       res.redirect(`${clientUrl}/oauth-callback?token=${token}`);
@@ -173,17 +173,17 @@ router.get('/github', passport.authenticate('github', {
 router.get('/github/callback', (req, res, next) => {
   passport.authenticate('github', { session: false }, (err, user, info) => {
     const clientUrl = getClientUrl();
-    
+
     if (err) {
       console.error('GitHub OAuth error:', err);
       return res.redirect(`${clientUrl}/login?error=${encodeURIComponent(err.message || 'oauth_failed')}`);
     }
-    
+
     if (!user) {
       console.error('GitHub OAuth: No user returned', info);
       return res.redirect(`${clientUrl}/login?error=oauth_failed`);
     }
-    
+
     try {
       const token = generateToken({ uuid: user.uuid, email: user.email, role: user.role });
       res.redirect(`${clientUrl}/oauth-callback?token=${token}`);
@@ -216,7 +216,7 @@ router.post('/register', [
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
-    
+
     // Generate unique 6-digit ID
     let uuid = generate6DigitId();
     let idExists = true;
@@ -276,20 +276,20 @@ router.post('/guest-checkout', [
     // Check if email exists
     const existing = await db.query('SELECT * FROM users WHERE email = ?', [email]);
     console.log('Existing user query result:', JSON.stringify(existing).substring(0, 200));
-    
+
     // Filter out MariaDB metadata - only keep actual user rows
     let existingUsers = [];
     if (Array.isArray(existing)) {
       existingUsers = existing.filter(row => row && typeof row === 'object' && row.email);
     }
-    
+
     console.log(`Found ${existingUsers.length} existing users`);
-    
+
     if (existingUsers.length > 0) {
       // User exists - return existing user with token
       const user = existingUsers[0];
       const token = generateToken({ uuid: user.uuid, email: user.email, role: user.role });
-      
+
       res.cookie('token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -307,7 +307,7 @@ router.post('/guest-checkout', [
     // Generate random password and 6-digit user ID
     const randomPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8).toUpperCase() + '!';
     const hashedPassword = await bcrypt.hash(randomPassword, 12);
-    
+
     // Generate unique 6-digit ID
     let uuid = generate6DigitId();
     let idExists = true;
@@ -377,7 +377,7 @@ router.post('/login', [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password } = req.body;
+    const { email, password, twofa_code } = req.body;
 
     const users = await db.query('SELECT * FROM users WHERE email = ?', [email]);
     if (!users.length) {
@@ -393,6 +393,30 @@ router.post('/login', [
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Check if 2FA is enabled
+    if (user.two_factor_enabled && user.two_factor_secret) {
+      // If no 2FA code provided, tell client to request one
+      if (!twofa_code) {
+        return res.status(200).json({
+          requires_2fa: true,
+          message: 'Please enter your 2FA code'
+        });
+      }
+
+      // Verify 2FA code
+      const speakeasy = require('speakeasy');
+      const verified = speakeasy.totp.verify({
+        secret: user.two_factor_secret,
+        encoding: 'base32',
+        token: twofa_code,
+        window: 2
+      });
+
+      if (!verified) {
+        return res.status(401).json({ error: 'Invalid 2FA code' });
+      }
     }
 
     // Update last login (ignore if column doesn't exist)
@@ -419,7 +443,8 @@ router.post('/login', [
         first_name: user.first_name,
         last_name: user.last_name,
         role: user.role,
-        avatar: user.avatar
+        avatar: user.avatar,
+        two_factor_enabled: !!user.two_factor_enabled
       },
       token
     });
@@ -512,7 +537,7 @@ router.put('/password', authenticate, [
 
     const users = await db.query('SELECT password FROM users WHERE id = ?', [req.user.id]);
     const validPassword = await bcrypt.compare(current_password, users[0].password);
-    
+
     if (!validPassword) {
       return res.status(400).json({ error: 'Current password is incorrect' });
     }
@@ -533,9 +558,9 @@ router.post('/forgot-password', [
 ], async (req, res) => {
   try {
     const { email } = req.body;
-    
+
     const users = await db.query('SELECT id FROM users WHERE email = ?', [email]);
-    
+
     // Always return success to prevent email enumeration
     if (!users.length) {
       return res.json({ message: 'If the email exists, a reset link has been sent' });

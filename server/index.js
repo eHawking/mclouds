@@ -24,6 +24,7 @@ const aiAgentRoutes = require('./routes/ai-agent');
 const paymentRoutes = require('./routes/payments');
 const proposalRoutes = require('./routes/proposals');
 const nobotRoutes = require('./routes/nobot');
+const twofaRoutes = require('./routes/twofa');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -87,6 +88,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api', proposalRoutes);
 app.use('/api/nobot', nobotRoutes);
 app.use('/api/admin/nobot', nobotRoutes);
+app.use('/api/2fa', twofaRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -96,7 +98,7 @@ app.get('/api/health', (req, res) => {
 // Serve React app in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/dist')));
-  
+
   app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../client/dist/index.html'));
   });
@@ -106,8 +108,8 @@ if (process.env.NODE_ENV === 'production') {
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(err.status || 500).json({
-    error: process.env.NODE_ENV === 'production' 
-      ? 'Something went wrong!' 
+    error: process.env.NODE_ENV === 'production'
+      ? 'Something went wrong!'
       : err.message
   });
 });
@@ -117,7 +119,7 @@ async function startServer() {
   try {
     await db.testConnection();
     console.log('✅ Database connected successfully');
-    
+
     app.listen(PORT, () => {
       console.log(`🚀 Magnetic Clouds server running on port ${PORT}`);
       console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);

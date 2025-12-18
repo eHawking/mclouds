@@ -41,7 +41,12 @@ export const authAPI = {
   me: () => api.get('/auth/me'),
   updateProfile: (data) => api.put('/auth/profile', data),
   changePassword: (data) => api.put('/auth/password', data),
-  forgotPassword: (email) => api.post('/auth/forgot-password', { email })
+  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
+  // 2FA
+  setup2FA: () => api.post('/2fa/setup'),
+  verify2FA: (code) => api.post('/2fa/verify', { code }),
+  disable2FA: (code) => api.post('/2fa/disable', { code }),
+  get2FAStatus: () => api.get('/2fa/status')
 }
 
 // Products API
@@ -153,68 +158,68 @@ export const pagesAPI = {
 // Admin API
 export const adminAPI = {
   getDashboard: () => api.get('/admin/dashboard'),
-  
+
   // Users
   getUsers: (params) => api.get('/admin/users', { params }),
   getUser: (uuid) => api.get(`/admin/users/${uuid}`),
   updateUser: (uuid, data) => api.put(`/admin/users/${uuid}`, data),
   loginAsUser: (uuid) => api.post(`/admin/users/${uuid}/login-as`),
   getUserResources: (uuid) => api.get(`/admin/users/${uuid}/resources`),
-  
+
   // Invoices
   getInvoices: (params) => api.get('/admin/invoices', { params }),
   getInvoice: (uuid) => api.get(`/admin/invoices/${uuid}`),
   updateInvoiceStatus: (uuid, status) => api.put(`/admin/invoices/${uuid}/status`, { status }),
-  
+
   // Products
   getProducts: () => api.get('/admin/products'),
   createProduct: (data) => api.post('/admin/products', data),
   updateProduct: (uuid, data) => api.put(`/admin/products/${uuid}`, data),
   deleteProduct: (uuid) => api.delete(`/admin/products/${uuid}`),
-  
+
   // Categories
   getCategories: () => api.get('/admin/categories'),
   createCategory: (data) => api.post('/admin/categories', data),
-  
+
   // Orders
   getOrders: (params) => api.get('/admin/orders', { params }),
   updateOrderStatus: (uuid, data) => api.put(`/admin/orders/${uuid}/status`, data),
-  
+
   // Services
   getServices: (params) => api.get('/admin/services', { params }),
   getService: (uuid) => api.get(`/admin/services/${uuid}`),
   updateService: (uuid, data) => api.put(`/admin/services/${uuid}`, data),
   getServicePleskStats: (uuid) => api.get(`/admin/services/${uuid}/plesk-stats`),
-  
+
   // Tickets
   getTickets: (params) => api.get('/admin/tickets', { params }),
   replyTicket: (uuid, message) => api.post(`/admin/tickets/${uuid}/reply`, { message }),
-  
+
   // TLDs
   getTLDs: () => api.get('/admin/tlds'),
   createTLD: (data) => api.post('/admin/tlds', data),
   updateTLD: (id, data) => api.put(`/admin/tlds/${id}`, data),
-  
+
   // Coupons
   getCoupons: () => api.get('/admin/coupons'),
   createCoupon: (data) => api.post('/admin/coupons', data),
-  
+
   // Datacenters
   getDatacenters: () => api.get('/admin/datacenters'),
   createDatacenter: (data) => api.post('/admin/datacenters', data),
-  
+
   // Pages
   getPages: () => api.get('/admin/pages'),
   createPage: (data) => api.post('/admin/pages', data),
   updatePage: (id, data) => api.put(`/admin/pages/${id}`, data),
-  
+
   // Settings
   getSettings: (category) => api.get('/admin/settings', { params: { category } }),
   updateSettings: (settings) => api.put('/admin/settings', { settings }),
-  
+
   // Activity
   getActivity: (params) => api.get('/admin/activity', { params }),
-  
+
   // Proposals
   getProposals: (params) => api.get('/admin/proposals', { params }),
   getProposal: (uuid) => api.get(`/admin/proposals/${uuid}`),
@@ -222,7 +227,7 @@ export const adminAPI = {
   updateProposal: (uuid, data) => api.put(`/admin/proposals/${uuid}`, data),
   deleteProposal: (uuid) => api.delete(`/admin/proposals/${uuid}`),
   sendProposal: (uuid) => api.post(`/admin/proposals/${uuid}/send`),
-  
+
   // Media
   uploadImage: (file) => {
     const formData = new FormData()
@@ -233,7 +238,7 @@ export const adminAPI = {
   },
   getMedia: (params) => api.get('/upload', { params }),
   deleteMedia: (uuid) => api.delete(`/upload/${uuid}`),
-  
+
   // NoBot Services
   getNoBotSettings: () => api.get('/admin/nobot/settings'),
   updateNoBotSettings: (settings) => api.put('/admin/nobot/settings', settings),
@@ -241,11 +246,11 @@ export const adminAPI = {
   getNoBotStats: () => api.get('/admin/nobot/stats'),
   getNoBotServices: (params) => api.get('/admin/nobot/services', { params }),
   getNoBotService: (uuid) => api.get(`/admin/nobot/services/${uuid}`),
-  
+
   // Email Logs
   getEmailLogs: (params) => api.get('/admin/email-logs', { params }),
   getEmailLog: (uuid) => api.get(`/admin/email-logs/${uuid}`),
-  
+
   // Notifications
   getNotifications: (params) => api.get('/admin/notifications', { params }),
   getNotificationCount: () => api.get('/admin/notifications/count'),

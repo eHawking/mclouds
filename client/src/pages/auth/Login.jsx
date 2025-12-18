@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { motion } from 'framer-motion'
-import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle, Shield } from 'lucide-react'
 import { authAPI } from '../../lib/api'
 import { useAuthStore, useThemeStore } from '../../store/useStore'
 import toast from 'react-hot-toast'
@@ -16,6 +16,8 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [requires2FA, setRequires2FA] = useState(false)
+  const [twofaCode, setTwofaCode] = useState('')
   const [form, setForm] = useState({
     email: '',
     password: '',
@@ -33,8 +35,16 @@ export default function Login() {
     try {
       const response = await authAPI.login({
         email: form.email,
-        password: form.password
+        password: form.password,
+        twofa_code: requires2FA ? twofaCode : undefined
       })
+
+      // Check if 2FA is required
+      if (response.data.requires_2fa) {
+        setRequires2FA(true)
+        setLoading(false)
+        return
+      }
 
       // Only allow regular users - admins must use /admin/login
       if (response.data.user.role === 'admin') {
@@ -73,8 +83,8 @@ export default function Login() {
             <Link to="/" className="inline-flex items-center gap-2 mb-6">
               <div className={clsx(
                 "w-12 h-12 rounded-2xl flex items-center justify-center text-white font-bold text-xl",
-                isGradient 
-                  ? "bg-gradient-to-br from-primary-500 to-secondary-500" 
+                isGradient
+                  ? "bg-gradient-to-br from-primary-500 to-secondary-500"
                   : "bg-primary-500"
               )}>
                 MC
@@ -126,6 +136,7 @@ export default function Login() {
                     placeholder="••••••••"
                     className="input pl-12 pr-12"
                     required
+                    disabled={requires2FA}
                   />
                   <button
                     type="button"
@@ -136,6 +147,30 @@ export default function Login() {
                   </button>
                 </div>
               </div>
+
+              {/* 2FA Code */}
+              {requires2FA && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                >
+                  <label className="block text-sm font-medium mb-2">
+                    <Shield className="inline w-4 h-4 mr-1 text-primary-500" />
+                    Two-Factor Authentication Code
+                  </label>
+                  <input
+                    type="text"
+                    value={twofaCode}
+                    onChange={(e) => setTwofaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="000000"
+                    className="input text-center text-2xl tracking-widest"
+                    maxLength={6}
+                    autoFocus
+                    required
+                  />
+                  <p className="text-xs text-dark-500 mt-1">Enter the 6-digit code from your authenticator app</p>
+                </motion.div>
+              )}
 
               {/* Remember me & Forgot password */}
               <div className="flex items-center justify-between">
@@ -196,7 +231,7 @@ export default function Login() {
 
             {/* Social login */}
             <div className="grid grid-cols-2 gap-3">
-              <a 
+              <a
                 href="/api/auth/google"
                 className="btn-secondary py-3 flex items-center justify-center"
               >
@@ -208,7 +243,7 @@ export default function Login() {
                 </svg>
                 Google
               </a>
-              <a 
+              <a
                 href="/api/auth/github"
                 className="btn-secondary py-3 flex items-center justify-center"
               >

@@ -2,11 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { 
-  LayoutDashboard, Server, Globe, FileText, Ticket, 
+import {
+  LayoutDashboard, Server, Globe, FileText, Ticket,
   User, LogOut, Menu, X, ChevronLeft, ChevronRight,
   ShoppingCart, Moon, Sun, Bell, CheckCheck, AlertCircle,
-  DollarSign, Package, Receipt
+  DollarSign, Package, Receipt, Shield
 } from 'lucide-react'
 import { useAuthStore, useThemeStore } from '../store/useStore'
 import { userAPI, settingsAPI } from '../lib/api'
@@ -37,6 +37,7 @@ const sidebarLinks = [
   { to: '/dashboard/invoices', icon: FileText, label: 'Invoices' },
   { to: '/dashboard/tickets', icon: Ticket, label: 'Support Tickets' },
   { to: '/dashboard/profile', icon: User, label: 'Profile' },
+  { to: '/dashboard/security', icon: Shield, label: 'Security' },
 ]
 
 export default function DashboardLayout() {
@@ -154,8 +155,8 @@ export default function DashboardLayout() {
               className={({ isActive }) => clsx(
                 "flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200",
                 sidebarCollapsed && "justify-center px-2",
-                isActive 
-                  ? "bg-primary-500 text-white shadow-lg shadow-primary-500/30" 
+                isActive
+                  ? "bg-primary-500 text-white shadow-lg shadow-primary-500/30"
                   : "text-dark-600 dark:text-dark-400 hover:bg-dark-100 dark:hover:bg-dark-800"
               )}
               title={sidebarCollapsed ? link.label : undefined}
@@ -230,17 +231,17 @@ export default function DashboardLayout() {
             <div className="flex items-center gap-2">
               {/* Google Translate */}
               <GoogleTranslate variant="minimal" />
-              
+
               <button
                 onClick={toggleTheme}
                 className="p-2 hover:bg-dark-100 dark:hover:bg-dark-800 rounded-lg transition-colors"
               >
                 {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
-              
+
               {/* Notifications */}
               <div className="relative" ref={notificationRef}>
-                <button 
+                <button
                   onClick={() => setNotificationsOpen(!notificationsOpen)}
                   className="p-2 hover:bg-dark-100 dark:hover:bg-dark-800 rounded-lg transition-colors relative"
                 >
@@ -288,7 +289,7 @@ export default function DashboardLayout() {
                           notifications.map((notification) => {
                             const IconComponent = NOTIFICATION_ICONS[notification.type] || Bell
                             const colorClass = NOTIFICATION_COLORS[notification.color] || NOTIFICATION_COLORS.primary
-                            
+
                             return (
                               <div
                                 key={notification.uuid}

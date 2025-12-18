@@ -13,6 +13,8 @@ export default function AdminLogin() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [requires2FA, setRequires2FA] = useState(false)
+  const [twofaCode, setTwofaCode] = useState('')
   const [form, setForm] = useState({
     email: '',
     password: ''
@@ -26,8 +28,16 @@ export default function AdminLogin() {
     try {
       const response = await authAPI.login({
         email: form.email,
-        password: form.password
+        password: form.password,
+        twofa_code: requires2FA ? twofaCode : undefined
       })
+
+      // Check if 2FA is required
+      if (response.data.requires_2fa) {
+        setRequires2FA(true)
+        setLoading(false)
+        return
+      }
 
       // Only allow admin users
       if (response.data.user.role !== 'admin') {
@@ -100,6 +110,7 @@ export default function AdminLogin() {
                     placeholder="admin@example.com"
                     className="w-full bg-dark-900/50 border border-dark-700 rounded-xl py-3 pl-12 pr-4 text-white placeholder-dark-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
                     required
+                    disabled={requires2FA}
                   />
                 </div>
               </div>
@@ -116,6 +127,7 @@ export default function AdminLogin() {
                     placeholder="••••••••"
                     className="w-full bg-dark-900/50 border border-dark-700 rounded-xl py-3 pl-12 pr-12 text-white placeholder-dark-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
                     required
+                    disabled={requires2FA}
                   />
                   <button
                     type="button"
@@ -126,6 +138,30 @@ export default function AdminLogin() {
                   </button>
                 </div>
               </div>
+
+              {/* 2FA Code */}
+              {requires2FA && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                >
+                  <label className="block text-sm font-medium text-dark-300 mb-2">
+                    <Shield className="inline w-4 h-4 mr-1 text-primary-400" />
+                    Two-Factor Authentication Code
+                  </label>
+                  <input
+                    type="text"
+                    value={twofaCode}
+                    onChange={(e) => setTwofaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="000000"
+                    className="w-full bg-dark-900/50 border border-dark-700 rounded-xl py-3 text-center text-2xl tracking-widest text-white placeholder-dark-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+                    maxLength={6}
+                    autoFocus
+                    required
+                  />
+                  <p className="text-xs text-dark-500 mt-1 text-center">Enter the 6-digit code from your authenticator app</p>
+                </motion.div>
+              )}
 
               {/* Submit button */}
               <button
@@ -144,7 +180,7 @@ export default function AdminLogin() {
                 ) : (
                   <span className="flex items-center justify-center gap-2">
                     <Shield className="w-5 h-5" />
-                    Access Admin Panel
+                    {requires2FA ? 'Verify & Login' : 'Access Admin Panel'}
                   </span>
                 )}
               </button>
