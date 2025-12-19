@@ -1,9 +1,27 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../database/connection');
-const { authenticate, requireRole, requirePermission } = require('../middleware/auth');
+const { authenticate, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Get all permissions (meta info) - MUST be before /:uuid to avoid route conflict
+router.get('/meta/permissions', authenticate, requireRole('admin'), async (req, res) => {
+    const permissions = {
+        users: { label: 'Users', actions: ['view', 'create', 'edit', 'delete'] },
+        orders: { label: 'Orders', actions: ['view', 'create', 'edit', 'delete'] },
+        tickets: { label: 'Support Tickets', actions: ['view', 'reply', 'close', 'delete'] },
+        settings: { label: 'Settings', actions: ['view', 'edit', 'manage_roles'] },
+        pricing: { label: 'Pricing & Plans', actions: ['view', 'edit'] },
+        content: { label: 'Pages & Content', actions: ['view', 'edit', 'delete'] },
+        invoices: { label: 'Invoices', actions: ['view', 'create', 'edit', 'delete'] },
+        proposals: { label: 'Proposals', actions: ['view', 'create', 'edit', 'delete'] },
+        domains: { label: 'Domains', actions: ['view', 'edit'] },
+        email: { label: 'Email', actions: ['view', 'send'] },
+        server: { label: 'Server Management', actions: ['view', 'manage'] }
+    };
+    res.json({ permissions });
+});
 
 // Get all roles
 router.get('/', authenticate, requireRole('admin'), async (req, res) => {
@@ -218,56 +236,5 @@ router.post('/assign', authenticate, requireRole('admin'), async (req, res) => {
     }
 });
 
-// Get all permissions (meta info)
-router.get('/meta/permissions', authenticate, requireRole('admin'), async (req, res) => {
-    const permissions = {
-        users: {
-            label: 'Users',
-            actions: ['view', 'create', 'edit', 'delete']
-        },
-        orders: {
-            label: 'Orders',
-            actions: ['view', 'create', 'edit', 'delete']
-        },
-        tickets: {
-            label: 'Support Tickets',
-            actions: ['view', 'reply', 'close', 'delete']
-        },
-        settings: {
-            label: 'Settings',
-            actions: ['view', 'edit', 'manage_roles']
-        },
-        pricing: {
-            label: 'Pricing & Plans',
-            actions: ['view', 'edit']
-        },
-        content: {
-            label: 'Pages & Content',
-            actions: ['view', 'edit', 'delete']
-        },
-        invoices: {
-            label: 'Invoices',
-            actions: ['view', 'create', 'edit', 'delete']
-        },
-        proposals: {
-            label: 'Proposals',
-            actions: ['view', 'create', 'edit', 'delete']
-        },
-        domains: {
-            label: 'Domains',
-            actions: ['view', 'edit']
-        },
-        email: {
-            label: 'Email',
-            actions: ['view', 'send']
-        },
-        server: {
-            label: 'Server Management',
-            actions: ['view', 'manage']
-        }
-    };
-
-    res.json({ permissions });
-});
-
 module.exports = router;
+
