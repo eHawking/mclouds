@@ -9,9 +9,90 @@ const router = express.Router();
 // All routes require authentication
 router.use(authenticate);
 
-// Get all roles
-router.get('/', requirePermission('roles.view'), async (req, res) => {
+// Helper to check if tables exist
+async function tablesExist() {
     try {
+        const result = await db.query(`
+      SELECT COUNT(*) as count FROM information_schema.tables 
+      WHERE table_schema = DATABASE() 
+      AND table_name IN ('roles', 'permissions', 'role_permissions')
+    `);
+        return result[0].count >= 3;
+    } catch (error) {
+        return false;
+    }
+}
+
+// Get all available permissions (grouped by department) - MUST be before /:uuid
+router.get('/permissions', async (req, res) => {
+    try {
+        // Check if user is admin
+        if (req.user.role !== 'admin' && !req.user.isSuperAdmin) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        if (!await tablesExist()) {
+            return res.json({ permissions: [], grouped: {} });
+        }
+
+        const permissions = await db.query(`
+      SELECT id, name, slug, department, description
+      FROM permissions
+      ORDER BY department, name
+    `);
+
+        // Group by department
+        const grouped = {};
+        for (const perm of permissions) {
+            if (!grouped[perm.department]) {
+                grouped[perm.department] = [];
+            }
+            grouped[perm.department].push(perm);
+        }
+
+        res.json({ permissions, grouped });
+    } catch (error) {
+        console.error('Get permissions error:', error);
+        res.status(500).json({ error: 'Failed to fetch permissions' });
+    }
+});
+
+// Get admin users (users with role_id set) - MUST be before /:uuid
+router.get('/admin-users/list', async (req, res) => {
+    try {
+        // Check if user is admin
+        if (req.user.role !== 'admin' && !req.user.isSuperAdmin) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        const users = await db.query(`
+      SELECT u.id, u.uuid, u.email, u.first_name, u.last_name, u.status, u.created_at, u.role_id,
+             r.name as role_name, r.slug as role_slug, r.uuid as role_uuid
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      WHERE u.role = 'admin' OR u.role_id IS NOT NULL
+      ORDER BY u.created_at DESC
+    `);
+
+        res.json({ users });
+    } catch (error) {
+        console.error('Get admin users error:', error);
+        res.status(500).json({ error: 'Failed to fetch admin users' });
+    }
+});
+
+// Get all roles
+router.get('/', async (req, res) => {
+    try {
+        // Check if user is admin
+        if (req.user.role !== 'admin' && !req.user.isSuperAdmin) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        if (!await tablesExist()) {
+            return res.json({ roles: [] });
+        }
+
         const roles = await db.query(`
       SELECT r.*, 
              (SELECT COUNT(*) FROM users WHERE role_id = r.id) as user_count,
@@ -39,53 +120,18 @@ router.get('/', requirePermission('roles.view'), async (req, res) => {
     }
 });
 
-// Get all available permissions (grouped by department) - MUST BE BEFORE /:uuid
-router.get('/permissions', requirePermission('roles.view'), async (req, res) => {
+// Get single role - MUST be after specific routes like /permissions
+router.get('/:uuid', async (req, res) => {
     try {
-        const permissions = await db.query(`
-      SELECT id, name, slug, department, description
-      FROM permissions
-      ORDER BY department, name
-    `);
-
-        // Group by department
-        const grouped = {};
-        for (const perm of permissions) {
-            if (!grouped[perm.department]) {
-                grouped[perm.department] = [];
-            }
-            grouped[perm.department].push(perm);
+        // Check if user is admin
+        if (req.user.role !== 'admin' && !req.user.isSuperAdmin) {
+            return res.status(403).json({ error: 'Access denied' });
         }
 
-        res.json({ permissions, grouped });
-    } catch (error) {
-        console.error('Get permissions error:', error);
-        res.status(500).json({ error: 'Failed to fetch permissions' });
-    }
-});
+        if (!await tablesExist()) {
+            return res.status(404).json({ error: 'Role not found' });
+        }
 
-// Get admin users (users with role_id set) - MUST BE BEFORE /:uuid
-router.get('/admin-users/list', requirePermission('users.view'), async (req, res) => {
-    try {
-        const users = await db.query(`
-      SELECT u.id, u.uuid, u.email, u.first_name, u.last_name, u.status, u.created_at, u.role_id,
-             r.name as role_name, r.slug as role_slug, r.uuid as role_uuid
-      FROM users u
-      LEFT JOIN roles r ON u.role_id = r.id
-      WHERE u.role = 'admin' OR u.role_id IS NOT NULL
-      ORDER BY u.created_at DESC
-    `);
-
-        res.json({ users });
-    } catch (error) {
-        console.error('Get admin users error:', error);
-        res.status(500).json({ error: 'Failed to fetch admin users' });
-    }
-});
-
-// Get single role - WILDCARD ROUTES MUST BE AFTER SPECIFIC ROUTES
-router.get('/:uuid', requirePermission('roles.view'), async (req, res) => {
-    try {
         const roles = await db.query(`
       SELECT r.*, u.first_name as created_by_name, u.last_name as created_by_lastname
       FROM roles r
@@ -325,8 +371,13 @@ router.delete('/:uuid', requireSuperAdmin(), async (req, res) => {
 });
 
 // Assign role to user
-router.put('/assign/:userUuid', requirePermission('users.edit'), async (req, res) => {
+router.put('/assign/:userUuid', async (req, res) => {
     try {
+        // Check if user is admin
+        if (req.user.role !== 'admin' && !req.user.isSuperAdmin) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
         const { role_id } = req.body;
 
         // Get user
