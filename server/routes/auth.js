@@ -426,21 +426,6 @@ router.post('/login', [
       // Ignore - column might not exist
     }
 
-    // Get permissions from role if assigned
-    let permissions = null;
-    if (user.role === 'admin' && user.role_id) {
-      try {
-        const roleData = await db.query('SELECT permissions FROM roles WHERE id = ?', [user.role_id]);
-        if (roleData.length && roleData[0].permissions) {
-          permissions = typeof roleData[0].permissions === 'string'
-            ? JSON.parse(roleData[0].permissions)
-            : roleData[0].permissions;
-        }
-      } catch (e) {
-        console.log('Error loading permissions:', e.message);
-      }
-    }
-
     const token = generateToken({ uuid: user.uuid, email: user.email, role: user.role });
 
     res.cookie('token', token, {
@@ -458,10 +443,8 @@ router.post('/login', [
         first_name: user.first_name,
         last_name: user.last_name,
         role: user.role,
-        role_id: user.role_id,
         avatar: user.avatar,
-        two_factor_enabled: !!user.two_factor_enabled,
-        permissions  // Include permissions in response
+        two_factor_enabled: !!user.two_factor_enabled
       },
       token
     });

@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { body, validationResult } = require('express-validator');
 const slugify = require('slugify');
 const db = require('../database/connection');
-const { authenticate, requireRole, requireAnyPermission } = require('../middleware/auth');
+const { authenticate, requireRole } = require('../middleware/auth');
 const emailService = require('../services/emailService');
 const notificationService = require('../services/notificationService');
 
@@ -67,8 +67,8 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
-// Users management - requires users.view permission
-router.get('/users', requireAnyPermission(['users.view', 'users.edit', 'users.delete']), async (req, res) => {
+// Users management
+router.get('/users', async (req, res) => {
   try {
     const { search, status, role, page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
@@ -109,7 +109,7 @@ router.get('/users', requireAnyPermission(['users.view', 'users.edit', 'users.de
   }
 });
 
-router.get('/users/:uuid', requireAnyPermission(['users.view', 'users.edit']), async (req, res) => {
+router.get('/users/:uuid', async (req, res) => {
   try {
     const users = await db.query('SELECT * FROM users WHERE uuid = ?', [req.params.uuid]);
     if (!users.length) {
@@ -143,7 +143,7 @@ router.get('/users/:uuid', requireAnyPermission(['users.view', 'users.edit']), a
   }
 });
 
-router.put('/users/:uuid', requireAnyPermission(['users.edit']), async (req, res) => {
+router.put('/users/:uuid', async (req, res) => {
   try {
     const { first_name, last_name, email, phone, company, address, role, status } = req.body;
 
@@ -245,8 +245,8 @@ router.post('/users/:uuid/login-as', async (req, res) => {
   }
 });
 
-// Invoices management - requires invoices.view permission
-router.get('/invoices', requireAnyPermission(['invoices.view', 'invoices.edit', 'invoices.delete']), async (req, res) => {
+// Invoices management
+router.get('/invoices', async (req, res) => {
   try {
     const { status, page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
@@ -316,7 +316,7 @@ router.get('/invoices/:uuid', async (req, res) => {
   }
 });
 
-router.put('/invoices/:uuid/status', requireAnyPermission(['invoices.edit']), async (req, res) => {
+router.put('/invoices/:uuid/status', async (req, res) => {
   try {
     const { status } = req.body;
     const validStatuses = ['draft', 'unpaid', 'paid', 'cancelled', 'refunded'];
@@ -443,8 +443,8 @@ router.post('/categories', async (req, res) => {
   }
 });
 
-// Orders management - requires orders.view permission
-router.get('/orders', requireAnyPermission(['orders.view', 'orders.edit', 'orders.delete']), async (req, res) => {
+// Orders management
+router.get('/orders', async (req, res) => {
   try {
     const { status, page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
@@ -482,7 +482,7 @@ router.get('/orders', requireAnyPermission(['orders.view', 'orders.edit', 'order
   }
 });
 
-router.put('/orders/:uuid/status', requireAnyPermission(['orders.edit']), async (req, res) => {
+router.put('/orders/:uuid/status', async (req, res) => {
   try {
     const { status, payment_status } = req.body;
 
@@ -674,8 +674,8 @@ router.post('/orders/sync-services', async (req, res) => {
   }
 });
 
-// Tickets management - requires tickets.view permission
-router.get('/tickets', requireAnyPermission(['tickets.view', 'tickets.reply', 'tickets.close']), async (req, res) => {
+// Tickets management
+router.get('/tickets', async (req, res) => {
   try {
     const { status, department, page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;

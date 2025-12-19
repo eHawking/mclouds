@@ -17,18 +17,17 @@ const simpleLinks = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
 ]
 
-// Collapsible menu groups with main page links - each with required permissions
+// Collapsible menu groups with main page links
 const menuGroups = [
   {
     id: 'users',
     label: 'Users',
     icon: Users,
     to: '/admin/users',
-    requiredPermissions: ['users.view', 'users.edit', 'users.delete'],
     children: [
-      { to: '/admin/proposals', icon: Send, label: 'Proposals', requiredPermissions: ['proposals.view', 'proposals.edit'] },
-      { to: '/admin/invoices', icon: Receipt, label: 'Invoices', requiredPermissions: ['invoices.view', 'invoices.edit'] },
-      { to: '/admin/orders', icon: ShoppingCart, label: 'Orders', requiredPermissions: ['orders.view', 'orders.edit'] },
+      { to: '/admin/proposals', icon: Send, label: 'Proposals' },
+      { to: '/admin/invoices', icon: Receipt, label: 'Invoices' },
+      { to: '/admin/orders', icon: ShoppingCart, label: 'Orders' },
       { to: '/admin/ai-chats', icon: MessageSquare, label: 'Chat History' },
     ]
   },
@@ -37,11 +36,10 @@ const menuGroups = [
     label: 'Pricing',
     icon: DollarSign,
     to: '/admin/pricing',
-    requiredPermissions: ['pricing.view', 'pricing.edit'],
     children: [
-      { to: '/admin/payment-gateway', icon: CreditCard, label: 'Payment Gateways', requiredPermissions: ['settings.view', 'settings.edit'] },
-      { to: '/admin/customize-plans', icon: Sliders, label: 'Customize Plans', requiredPermissions: ['pricing.view', 'pricing.edit'] },
-      { to: '/admin/domains', icon: Globe, label: 'Domain TLDs', requiredPermissions: ['domains.view', 'domains.edit'] },
+      { to: '/admin/payment-gateway', icon: CreditCard, label: 'Payment Gateways' },
+      { to: '/admin/customize-plans', icon: Sliders, label: 'Customize Plans' },
+      { to: '/admin/domains', icon: Globe, label: 'Domain TLDs' },
     ]
   },
   {
@@ -49,40 +47,24 @@ const menuGroups = [
     label: 'Settings',
     icon: Settings,
     to: '/admin/settings',
-    requiredPermissions: ['settings.view', 'settings.edit', 'settings.manage_roles'],
     children: [
-      { to: '/admin/header-footer', icon: FileText, label: 'Header & Footer', requiredPermissions: ['content.view', 'content.edit'] },
-      { to: '/admin/pages', icon: FileText, label: 'Pages', requiredPermissions: ['content.view', 'content.edit'] },
-      { to: '/admin/server-management', icon: Server, label: 'Server Management', requiredPermissions: ['server.view', 'server.manage'] },
-      { to: '/admin/email-settings', icon: Mail, label: 'Email Settings', requiredPermissions: ['email.view', 'email.send'] },
-      { to: '/admin/email-logs', icon: Mail, label: 'Email Logs', requiredPermissions: ['email.view'] },
-      { to: '/admin/security', icon: Shield, label: 'Security', requiredPermissions: ['settings.view', 'settings.edit'] },
-      { to: '/admin/roles', icon: Shield, label: 'Roles & Permissions', requiredPermissions: ['settings.manage_roles'] },
-      { to: '/admin/nobot-services', icon: Bot, label: 'NoBot Services', requiredPermissions: ['settings.view', 'settings.edit'] },
-      { to: '/admin/ai-agent', icon: Bot, label: 'AI Agents', requiredPermissions: ['settings.view', 'settings.edit'] },
+      { to: '/admin/header-footer', icon: FileText, label: 'Header & Footer' },
+      { to: '/admin/pages', icon: FileText, label: 'Pages' },
+      { to: '/admin/server-management', icon: Server, label: 'Server Management' },
+      { to: '/admin/email-settings', icon: Mail, label: 'Email Settings' },
+      { to: '/admin/email-logs', icon: Mail, label: 'Email Logs' },
+      { to: '/admin/security', icon: Shield, label: 'Security' },
+      { to: '/admin/roles', icon: Shield, label: 'Roles & Permissions' },
+      { to: '/admin/nobot-services', icon: Bot, label: 'NoBot Services' },
+      { to: '/admin/ai-agent', icon: Bot, label: 'AI Agents' },
     ]
   }
 ]
 
 // Bottom links (after groups)
 const bottomLinks = [
-  { to: '/admin/tickets', icon: Ticket, label: 'Tickets', requiredPermissions: ['tickets.view', 'tickets.reply'] },
+  { to: '/admin/tickets', icon: Ticket, label: 'Tickets' },
 ]
-
-// Permission check helper
-const hasAnyPermission = (userPermissions, requiredPermissions) => {
-  // Super admin (no role_id) has all permissions
-  if (!requiredPermissions || requiredPermissions.length === 0) return true
-
-  // Check if user has any of the required permissions
-  for (const perm of requiredPermissions) {
-    const [category, action] = perm.split('.')
-    if (userPermissions?.[category]?.includes(action)) {
-      return true
-    }
-  }
-  return false
-}
 
 const NOTIFICATION_ICONS = {
   order: ShoppingCart,
@@ -252,120 +234,102 @@ export default function AdminLayout() {
             </NavLink>
           ))}
 
-          {/* Collapsible Menu Groups - filtered by permissions */}
-          {menuGroups
-            .filter(group => {
-              // Super admin without role_id sees everything
-              if (!user?.role_id) return true
-              // Check if user has permission for this group
-              return hasAnyPermission(user?.permissions, group.requiredPermissions)
-            })
-            .map((group) => {
-              // Filter children based on permissions
-              const visibleChildren = group.children.filter(child => {
-                if (!user?.role_id) return true
-                return hasAnyPermission(user?.permissions, child.requiredPermissions)
-              })
+          {/* Collapsible Menu Groups */}
+          {menuGroups.map((group) => {
+            const isExpanded = expandedMenus.includes(group.id)
+            const hasActiveChild = isMenuActive(group)
+            const isMainActive = location.pathname === group.to
 
-              const isExpanded = expandedMenus.includes(group.id)
-              const hasActiveChild = isMenuActive(group)
-              const isMainActive = location.pathname === group.to
-
-              return (
-                <div key={group.id} className="mt-2">
-                  {/* Group Header - Split: Label navigates, Chevron toggles */}
-                  <div className={clsx(
-                    "flex items-center rounded-xl font-medium transition-all duration-200",
-                    (hasActiveChild || isMainActive)
-                      ? "bg-primary-500/20 text-primary-400"
-                      : "text-dark-300 hover:bg-dark-800 hover:text-white"
-                  )}>
-                    <NavLink
-                      to={group.to}
-                      onClick={() => setSidebarOpen(false)}
-                      className={clsx("flex-1 flex items-center gap-3 px-4 py-3", sidebarCollapsed && "justify-center px-2")}
-                      title={sidebarCollapsed ? group.label : undefined}
-                    >
-                      <group.icon className="w-5 h-5 flex-shrink-0" />
-                      {!sidebarCollapsed && <span>{group.label}</span>}
-                    </NavLink>
-                    {!sidebarCollapsed && (
-                      <button
-                        onClick={() => toggleMenu(group.id)}
-                        className="p-3 hover:bg-dark-700 rounded-r-xl transition-colors"
-                      >
-                        <ChevronDown className={clsx(
-                          "w-4 h-4 transition-transform duration-200",
-                          isExpanded && "rotate-180"
-                        )} />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Submenu */}
+            return (
+              <div key={group.id} className="mt-2">
+                {/* Group Header - Split: Label navigates, Chevron toggles */}
+                <div className={clsx(
+                  "flex items-center rounded-xl font-medium transition-all duration-200",
+                  (hasActiveChild || isMainActive)
+                    ? "bg-primary-500/20 text-primary-400"
+                    : "text-dark-300 hover:bg-dark-800 hover:text-white"
+                )}>
+                  <NavLink
+                    to={group.to}
+                    onClick={() => setSidebarOpen(false)}
+                    className={clsx("flex-1 flex items-center gap-3 px-4 py-3", sidebarCollapsed && "justify-center px-2")}
+                    title={sidebarCollapsed ? group.label : undefined}
+                  >
+                    <group.icon className="w-5 h-5 flex-shrink-0" />
+                    {!sidebarCollapsed && <span>{group.label}</span>}
+                  </NavLink>
                   {!sidebarCollapsed && (
-                    <AnimatePresence>
-                      {isExpanded && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="pl-4 mt-1 space-y-1">
-                            {visibleChildren.map((child) => (
-                              <NavLink
-                                key={child.to}
-                                to={child.to}
-                                onClick={() => setSidebarOpen(false)}
-                                className={({ isActive }) => clsx(
-                                  "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
-                                  isActive
-                                    ? "bg-primary-500 text-white shadow-lg"
-                                    : "text-dark-400 hover:bg-dark-800 hover:text-white"
-                                )}
-                              >
-                                <child.icon className="w-4 h-4" />
-                                <span>{child.label}</span>
-                              </NavLink>
-                            ))}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                    <button
+                      onClick={() => toggleMenu(group.id)}
+                      className="p-3 hover:bg-dark-700 rounded-r-xl transition-colors"
+                    >
+                      <ChevronDown className={clsx(
+                        "w-4 h-4 transition-transform duration-200",
+                        isExpanded && "rotate-180"
+                      )} />
+                    </button>
                   )}
                 </div>
-              )
-            })}
+
+                {/* Submenu */}
+                {!sidebarCollapsed && (
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="pl-4 mt-1 space-y-1">
+                          {group.children.map((child) => (
+                            <NavLink
+                              key={child.to}
+                              to={child.to}
+                              onClick={() => setSidebarOpen(false)}
+                              className={({ isActive }) => clsx(
+                                "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                                isActive
+                                  ? "bg-primary-500 text-white shadow-lg"
+                                  : "text-dark-400 hover:bg-dark-800 hover:text-white"
+                              )}
+                            >
+                              <child.icon className="w-4 h-4" />
+                              <span>{child.label}</span>
+                            </NavLink>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                )}
+              </div>
+            )
+          })}
 
           {/* Divider */}
           <div className="my-4 border-t border-dark-700" />
 
-          {/* Bottom Links - filtered by permissions */}
-          {bottomLinks
-            .filter(link => {
-              if (!user?.role_id) return true
-              return hasAnyPermission(user?.permissions, link.requiredPermissions)
-            })
-            .map((link) => (
-              <NavLink
-                key={link.to}
-                to={link.to}
-                onClick={() => setSidebarOpen(false)}
-                className={({ isActive }) => clsx(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200",
-                  sidebarCollapsed && "justify-center px-2",
-                  isActive
-                    ? "bg-primary-500 text-white shadow-lg"
-                    : "text-dark-300 hover:bg-dark-800 hover:text-white"
-                )}
-                title={sidebarCollapsed ? link.label : undefined}
-              >
-                <link.icon className="w-5 h-5 flex-shrink-0" />
-                {!sidebarCollapsed && <span>{link.label}</span>}
-              </NavLink>
-            ))}
+          {/* Bottom Links */}
+          {bottomLinks.map((link) => (
+            <NavLink
+              key={link.to}
+              to={link.to}
+              onClick={() => setSidebarOpen(false)}
+              className={({ isActive }) => clsx(
+                "flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200",
+                sidebarCollapsed && "justify-center px-2",
+                isActive
+                  ? "bg-primary-500 text-white shadow-lg"
+                  : "text-dark-300 hover:bg-dark-800 hover:text-white"
+              )}
+              title={sidebarCollapsed ? link.label : undefined}
+            >
+              <link.icon className="w-5 h-5 flex-shrink-0" />
+              {!sidebarCollapsed && <span>{link.label}</span>}
+            </NavLink>
+          ))}
         </nav>
 
         {/* Bottom actions */}
