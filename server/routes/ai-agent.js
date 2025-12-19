@@ -9,7 +9,7 @@ function httpsPost(url, data) {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(url);
     const postData = JSON.stringify(data);
-    
+
     const options = {
       hostname: urlObj.hostname,
       path: urlObj.pathname + urlObj.search,
@@ -38,7 +38,7 @@ function httpsPost(url, data) {
       req.destroy();
       reject(new Error('Request timeout'));
     });
-    
+
     req.write(postData);
     req.end();
   });
@@ -143,14 +143,14 @@ router.post('/validate', async (req, res) => {
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`;
     console.log('Making request to Gemini API...');
-    
+
     const response = await httpsPost(url, {
       contents: [{ parts: [{ text: 'Hello' }] }]
     });
 
     console.log('Gemini response status:', response.status);
     console.log('Gemini response data:', JSON.stringify(response.data).substring(0, 300));
-    
+
     if (response.status === 200 && response.data && response.data.candidates) {
       console.log('API key validation successful');
       return res.json({ valid: true, message: 'API key is valid' });
@@ -181,26 +181,25 @@ router.post('/test', async (req, res) => {
     'gemini-2.0-flash-exp',
     'gemini-1.5-flash',
     'gemini-1.5-flash-latest',
-    'gemini-1.5-pro',
-    'gemini-pro'
+    'gemini-1.5-pro'
   ];
 
   for (const model of modelsToTry) {
     console.log(`Testing model: ${model}`);
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      
+
       const response = await httpsPost(url, {
         contents: [{ parts: [{ text: 'Say "OK" only.' }] }]
       });
 
       console.log(`Model ${model} response status:`, response.status);
-      
+
       if (response.status === 200 && response.data && response.data.candidates) {
         const responseText = response.data.candidates[0]?.content?.parts?.[0]?.text || '';
         console.log(`Model ${model} SUCCESS! Response: ${responseText}`);
-        return res.json({ 
-          success: true, 
+        return res.json({
+          success: true,
           model: model,
           message: `Successfully connected using ${model}`,
           response: responseText.substring(0, 100)
@@ -216,8 +215,8 @@ router.post('/test', async (req, res) => {
   }
 
   // If all models failed
-  return res.json({ 
-    success: false, 
+  return res.json({
+    success: false,
     message: 'All models failed. Please check your API key is valid and has proper permissions.',
     modelsAttempted: modelsToTry
   });
@@ -255,7 +254,7 @@ Respond naturally as ${agentName} would. Keep it brief and helpful.
 `;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`;
-    
+
     const response = await httpsPost(url, {
       contents: [
         ...conversationContext,
@@ -307,12 +306,12 @@ router.get('/settings', async (req, res) => {
     const settings = await db.query(
       "SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('ai_agent_enabled', 'ai_agent_api_key')"
     );
-    
+
     const result = {
       enabled: false,
       hasApiKey: false
     };
-    
+
     for (const s of settings) {
       if (s.setting_key === 'ai_agent_enabled') {
         result.enabled = s.setting_value === 'true';
@@ -321,7 +320,7 @@ router.get('/settings', async (req, res) => {
         result.hasApiKey = !!s.setting_value;
       }
     }
-    
+
     res.json(result);
   } catch (error) {
     console.error('Get AI settings error:', error);
@@ -335,12 +334,12 @@ router.get('/settings/admin', authenticate, requireRole('admin'), async (req, re
     const settings = await db.query(
       "SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'ai_agent_%'"
     );
-    
+
     const result = {};
     for (const s of settings) {
       result[s.setting_key] = s.setting_value;
     }
-    
+
     res.json({
       enabled: result.ai_agent_enabled === 'true',
       apiKey: result.ai_agent_api_key || '',
@@ -362,7 +361,7 @@ router.get('/settings/admin', authenticate, requireRole('admin'), async (req, re
 router.post('/settings', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const { enabled, apiKey, settings } = req.body;
-    
+
     // Save enabled state - use simple INSERT/UPDATE
     if (enabled !== undefined) {
       const existsEnabled = await db.query("SELECT 1 FROM settings WHERE setting_key = 'ai_agent_enabled'");
@@ -372,7 +371,7 @@ router.post('/settings', authenticate, requireRole('admin'), async (req, res) =>
         await db.query("INSERT INTO settings (setting_key, setting_value) VALUES ('ai_agent_enabled', ?)", [String(enabled)]);
       }
     }
-    
+
     // Save API key
     if (apiKey !== undefined) {
       const existsKey = await db.query("SELECT 1 FROM settings WHERE setting_key = 'ai_agent_api_key'");
@@ -382,7 +381,7 @@ router.post('/settings', authenticate, requireRole('admin'), async (req, res) =>
         await db.query("INSERT INTO settings (setting_key, setting_value) VALUES ('ai_agent_api_key', ?)", [apiKey]);
       }
     }
-    
+
     // Save timing settings
     if (settings) {
       const timingSettings = {
@@ -392,7 +391,7 @@ router.post('/settings', authenticate, requireRole('admin'), async (req, res) =>
         ai_agent_followup_timeout: settings.followUpTimeout,
         ai_agent_end_timeout: settings.endChatTimeout
       };
-      
+
       for (const [key, value] of Object.entries(timingSettings)) {
         if (value !== undefined) {
           const exists = await db.query("SELECT 1 FROM settings WHERE setting_key = ?", [key]);
@@ -404,7 +403,7 @@ router.post('/settings', authenticate, requireRole('admin'), async (req, res) =>
         }
       }
     }
-    
+
     console.log('AI agent settings saved successfully');
     res.json({ success: true, message: 'AI agent settings saved' });
   } catch (error) {

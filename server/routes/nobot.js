@@ -14,12 +14,12 @@ router.get('/settings', authenticate, requireRole('admin'), async (req, res) => 
       SELECT COUNT(*) as count FROM information_schema.tables 
       WHERE table_schema = DATABASE() AND table_name = 'nobot_settings'
     `);
-    
+
     if (!tableCheck[0]?.count) {
       // Table doesn't exist, return empty settings
       return res.json({ settings: {} });
     }
-    
+
     const settings = await db.query('SELECT * FROM nobot_settings');
     const settingsObj = {};
     (settings || []).forEach(s => {
@@ -43,14 +43,14 @@ router.get('/settings', authenticate, requireRole('admin'), async (req, res) => 
 router.put('/settings', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const settings = req.body;
-    
+
     for (const [key, value] of Object.entries(settings)) {
-      const settingType = typeof value === 'boolean' ? 'boolean' : 
-                          typeof value === 'number' ? 'number' : 'string';
+      const settingType = typeof value === 'boolean' ? 'boolean' :
+        typeof value === 'number' ? 'number' : 'string';
       const dbValue = typeof value === 'boolean' ? (value ? 'true' : 'false') : String(value);
-      
+
       const existing = await db.query('SELECT id FROM nobot_settings WHERE setting_key = ?', [key]);
-      
+
       if (existing && existing.length > 0) {
         await db.query(
           'UPDATE nobot_settings SET setting_value = ?, setting_type = ? WHERE setting_key = ?',
@@ -63,7 +63,7 @@ router.put('/settings', authenticate, requireRole('admin'), async (req, res) => 
         );
       }
     }
-    
+
     res.json({ message: 'Settings updated' });
   } catch (error) {
     console.error('Update NoBot settings error:', error);
@@ -75,16 +75,16 @@ router.put('/settings', authenticate, requireRole('admin'), async (req, res) => 
 router.post('/test-connection', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const { type, api_key } = req.body;
-    
+
     if (type === 'gemini') {
       const { GoogleGenerativeAI } = require('@google/generative-ai');
       const genAI = new GoogleGenerativeAI(api_key);
-      const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
-      
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
       const result = await model.generateContent('Say "Connection successful!" in exactly those words.');
       const response = await result.response;
       const text = response.text();
-      
+
       res.json({ success: true, message: text });
     } else {
       res.status(400).json({ error: 'Unknown connection type' });
@@ -103,7 +103,7 @@ router.get('/stats', authenticate, requireRole('admin'), async (req, res) => {
       SELECT COUNT(*) as count FROM information_schema.tables 
       WHERE table_schema = DATABASE() AND table_name = 'nobot_services'
     `);
-    
+
     if (!tableCheck[0]?.count) {
       // Tables don't exist yet, return zeros
       return res.json({
@@ -115,12 +115,12 @@ router.get('/stats', authenticate, requireRole('admin'), async (req, res) => {
         }
       });
     }
-    
+
     const totalBots = await db.query('SELECT COUNT(*) as count FROM nobot_services');
     const activeBots = await db.query("SELECT COUNT(*) as count FROM nobot_services WHERE status = 'active'");
     const totalConversations = await db.query('SELECT COUNT(*) as count FROM nobot_conversations');
     const totalMessages = await db.query('SELECT COUNT(*) as count FROM nobot_messages');
-    
+
     res.json({
       stats: {
         total_bots: Number(totalBots[0]?.count || 0),
@@ -167,10 +167,10 @@ router.post('/create', authenticate, async (req, res) => {
     const { name, bot_type, service_id } = req.body;
     const { v4: uuidv4 } = require('uuid');
     const botUuid = uuidv4();
-    
+
     // Valid bot_type values: 'whatsapp', 'messenger', 'instagram', 'all'
     const validBotType = ['whatsapp', 'messenger', 'instagram', 'all'].includes(bot_type) ? bot_type : 'all';
-    
+
     // Look up service ID from UUID if provided
     let serviceIdInt = null;
     if (service_id) {
@@ -179,15 +179,15 @@ router.post('/create', authenticate, async (req, res) => {
         serviceIdInt = services[0].id;
       }
     }
-    
+
     await db.query(`
       INSERT INTO nobot_services (uuid, user_id, plan_name, bot_type, service_id, status, setup_step)
       VALUES (?, ?, ?, ?, ?, 'pending_setup', 1)
     `, [botUuid, req.user.id, name || 'NoBot AI', validBotType, serviceIdInt]);
-    
-    res.status(201).json({ 
+
+    res.status(201).json({
       message: 'Bot created successfully',
-      uuid: botUuid 
+      uuid: botUuid
     });
   } catch (error) {
     console.error('Create bot error:', error);
@@ -219,11 +219,11 @@ router.get('/:uuid', authenticate, async (req, res) => {
       'SELECT * FROM nobot_services WHERE uuid = ? AND user_id = ?',
       [req.params.uuid, req.user.id]
     );
-    
+
     if (!bots.length) {
       return res.status(404).json({ error: 'Bot not found' });
     }
-    
+
     res.json({ bot: bots[0] });
   } catch (error) {
     console.error('Get bot error:', error);
@@ -235,22 +235,22 @@ router.get('/:uuid', authenticate, async (req, res) => {
 router.post('/:uuid/setup', authenticate, async (req, res) => {
   try {
     const { domain, website_url } = req.body;
-    
+
     const bots = await db.query(
       'SELECT * FROM nobot_services WHERE uuid = ? AND user_id = ?',
       [req.params.uuid, req.user.id]
     );
-    
+
     if (!bots.length) {
       return res.status(404).json({ error: 'Bot not found' });
     }
-    
+
     await db.query(`
       UPDATE nobot_services 
       SET domain = ?, website_url = ?, setup_step = 2
       WHERE uuid = ?
     `, [domain, website_url, req.params.uuid]);
-    
+
     res.json({ message: 'Setup completed', step: 2 });
   } catch (error) {
     console.error('Setup bot error:', error);
@@ -262,34 +262,34 @@ router.post('/:uuid/setup', authenticate, async (req, res) => {
 router.post('/:uuid/train', authenticate, async (req, res) => {
   try {
     const { method, website_url, training_data } = req.body;
-    
+
     const bots = await db.query(
       'SELECT * FROM nobot_services WHERE uuid = ? AND user_id = ?',
       [req.params.uuid, req.user.id]
     );
-    
+
     if (!bots.length) {
       return res.status(404).json({ error: 'Bot not found' });
     }
-    
+
     // Update training status
     await db.query(`
       UPDATE nobot_services 
       SET training_status = 'in_progress', training_method = ?
       WHERE uuid = ?
     `, [method, req.params.uuid]);
-    
+
     let finalTrainingData = training_data || '';
-    
+
     // If method is 'website', fetch content from website
     if (method === 'website' && website_url) {
       try {
         const axios = require('axios');
         const cheerio = require('cheerio');
-        
+
         const response = await axios.get(website_url, { timeout: 10000 });
         const $ = cheerio.load(response.data);
-        
+
         // Extract text content
         $('script, style, nav, footer, header').remove();
         finalTrainingData = $('body').text().replace(/\s+/g, ' ').trim().substring(0, 50000);
@@ -298,7 +298,7 @@ router.post('/:uuid/train', authenticate, async (req, res) => {
         finalTrainingData = `Website: ${website_url}. Unable to fetch content automatically.`;
       }
     }
-    
+
     // Store training data and mark as trained - setup complete (step 4)
     await db.query(`
       UPDATE nobot_services 
@@ -306,7 +306,7 @@ router.post('/:uuid/train', authenticate, async (req, res) => {
           status = 'active', setup_step = 4
       WHERE uuid = ?
     `, [finalTrainingData, req.params.uuid]);
-    
+
     res.json({ message: 'Training completed', step: 4 });
   } catch (error) {
     console.error('Train bot error:', error);
@@ -318,38 +318,38 @@ router.post('/:uuid/train', authenticate, async (req, res) => {
 router.post('/:uuid/train-file', authenticate, async (req, res) => {
   try {
     const multer = require('multer');
-    const upload = multer({ 
+    const upload = multer({
       storage: multer.memoryStorage(),
       limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
     }).single('file');
-    
+
     upload(req, res, async (err) => {
       if (err) {
         return res.status(400).json({ error: 'File upload failed' });
       }
-      
+
       if (!req.file) {
         return res.status(400).json({ error: 'No file provided' });
       }
-      
+
       const bots = await db.query(
         'SELECT * FROM nobot_services WHERE uuid = ? AND user_id = ?',
         [req.params.uuid, req.user.id]
       );
-      
+
       if (!bots.length) {
         return res.status(404).json({ error: 'Bot not found' });
       }
-      
+
       const trainingData = req.file.buffer.toString('utf-8');
-      
+
       await db.query(`
         UPDATE nobot_services 
         SET training_data = ?, training_method = 'file', training_status = 'completed',
             trained_at = NOW(), status = 'active', setup_step = 4
         WHERE uuid = ?
       `, [trainingData, req.params.uuid]);
-      
+
       res.json({ message: 'Training completed from file', step: 4 });
     });
   } catch (error) {
@@ -362,16 +362,16 @@ router.post('/:uuid/train-file', authenticate, async (req, res) => {
 router.post('/:uuid/verify-widget', authenticate, async (req, res) => {
   try {
     const { platform } = req.body;
-    
+
     const bots = await db.query(
       'SELECT * FROM nobot_services WHERE uuid = ? AND user_id = ?',
       [req.params.uuid, req.user.id]
     );
-    
+
     if (!bots.length) {
       return res.status(404).json({ error: 'Bot not found' });
     }
-    
+
     // In a real implementation, you would verify the widget installation
     // For now, we'll simulate successful verification
     await db.query(`
@@ -380,7 +380,7 @@ router.post('/:uuid/verify-widget', authenticate, async (req, res) => {
           status = 'active', setup_step = 4
       WHERE uuid = ?
     `, [platform, req.params.uuid]);
-    
+
     res.json({ verified: true, message: 'Widget verified successfully' });
   } catch (error) {
     console.error('Verify widget error:', error);
@@ -392,20 +392,20 @@ router.post('/:uuid/verify-widget', authenticate, async (req, res) => {
 router.put('/:uuid/settings', authenticate, async (req, res) => {
   try {
     const { custom_settings } = req.body;
-    
+
     const bots = await db.query(
       'SELECT * FROM nobot_services WHERE uuid = ? AND user_id = ?',
       [req.params.uuid, req.user.id]
     );
-    
+
     if (!bots.length) {
       return res.status(404).json({ error: 'Bot not found' });
     }
-    
+
     await db.query(`
       UPDATE nobot_services SET custom_settings = ? WHERE uuid = ?
     `, [JSON.stringify(custom_settings), req.params.uuid]);
-    
+
     res.json({ message: 'Settings updated' });
   } catch (error) {
     console.error('Update bot settings error:', error);
@@ -420,17 +420,17 @@ router.get('/:uuid/conversations', authenticate, async (req, res) => {
       'SELECT id FROM nobot_services WHERE uuid = ? AND user_id = ?',
       [req.params.uuid, req.user.id]
     );
-    
+
     if (!bots.length) {
       return res.status(404).json({ error: 'Bot not found' });
     }
-    
+
     const conversations = await db.query(`
       SELECT * FROM nobot_conversations 
       WHERE nobot_service_id = ? 
       ORDER BY last_message_at DESC
     `, [bots[0].id]);
-    
+
     res.json({ conversations });
   } catch (error) {
     console.error('Get conversations error:', error);
@@ -445,25 +445,25 @@ router.get('/:uuid/conversations/:conversationId', authenticate, async (req, res
       'SELECT id FROM nobot_services WHERE uuid = ? AND user_id = ?',
       [req.params.uuid, req.user.id]
     );
-    
+
     if (!bots.length) {
       return res.status(404).json({ error: 'Bot not found' });
     }
-    
+
     const conversations = await db.query(
       'SELECT * FROM nobot_conversations WHERE id = ? AND nobot_service_id = ?',
       [req.params.conversationId, bots[0].id]
     );
-    
+
     if (!conversations.length) {
       return res.status(404).json({ error: 'Conversation not found' });
     }
-    
+
     const messages = await db.query(
       'SELECT * FROM nobot_messages WHERE conversation_id = ? ORDER BY created_at ASC',
       [req.params.conversationId]
     );
-    
+
     res.json({ conversation: conversations[0], messages });
   } catch (error) {
     console.error('Get conversation error:', error);
@@ -475,25 +475,25 @@ router.get('/:uuid/conversations/:conversationId', authenticate, async (req, res
 router.post('/:uuid/conversations/:conversationId/message', authenticate, async (req, res) => {
   try {
     const { message } = req.body;
-    
+
     const bots = await db.query(
       'SELECT id FROM nobot_services WHERE uuid = ? AND user_id = ?',
       [req.params.uuid, req.user.id]
     );
-    
+
     if (!bots.length) {
       return res.status(404).json({ error: 'Bot not found' });
     }
-    
+
     await db.query(`
       INSERT INTO nobot_messages (conversation_id, sender_type, message)
       VALUES (?, 'human', ?)
     `, [req.params.conversationId, message]);
-    
+
     await db.query(`
       UPDATE nobot_conversations SET last_message_at = NOW() WHERE id = ?
     `, [req.params.conversationId]);
-    
+
     res.json({ message: 'Message sent' });
   } catch (error) {
     console.error('Send message error:', error);
