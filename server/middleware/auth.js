@@ -54,13 +54,26 @@ async function authenticate(req, res, next) {
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-    const users = await db.query(`
-      SELECT u.id, u.uuid, u.email, u.first_name, u.last_name, u.role, u.status, u.role_id,
-             r.slug as role_slug, r.is_system, r.can_create_roles
-      FROM users u
-      LEFT JOIN roles r ON u.role_id = r.id
-      WHERE u.uuid = ?
-    `, [decoded.uuid]);
+
+    // Try to get user with role info, fall back to simple query if roles table doesn't exist
+    let users;
+    try {
+      users = await db.query(`
+        SELECT u.id, u.uuid, u.email, u.first_name, u.last_name, u.role, u.status, u.role_id,
+               r.slug as role_slug, r.is_system, r.can_create_roles
+        FROM users u
+        LEFT JOIN roles r ON u.role_id = r.id
+        WHERE u.uuid = ?
+      `, [decoded.uuid]);
+    } catch (queryError) {
+      // If roles table doesn't exist, fall back to simple query
+      console.log('Roles table may not exist, falling back to simple user query');
+      users = await db.query(`
+        SELECT id, uuid, email, first_name, last_name, role, status, role_id
+        FROM users
+        WHERE uuid = ?
+      `, [decoded.uuid]);
+    }
 
     if (!users.length) {
       return res.status(401).json({ error: 'User not found' });
@@ -72,8 +85,12 @@ async function authenticate(req, res, next) {
 
     const user = users[0];
 
-    // Load permissions from cache
-    await loadPermissionCache();
+    // Try to load permissions from cache (will silently fail if tables don't exist)
+    try {
+      await loadPermissionCache();
+    } catch (cacheError) {
+      console.log('Could not load permission cache, continuing without');
+    }
 
     // Attach permissions to user
     if (user.role_id && permissionCache[user.role_id]) {
@@ -99,6 +116,7 @@ async function authenticate(req, res, next) {
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ error: 'Token expired' });
     }
+    console.error('Auth error:', error.message);
     return res.status(401).json({ error: 'Invalid token' });
   }
 }
