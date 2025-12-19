@@ -71,21 +71,89 @@ router.put('/settings', authenticate, requireRole('admin'), async (req, res) => 
   }
 });
 
-// Test connection (Gemini API)
+// Test connection (Gemini API) - Uses direct HTTP to try multiple models
 router.post('/test-connection', authenticate, requireRole('admin'), async (req, res) => {
   try {
     const { type, api_key } = req.body;
 
     if (type === 'gemini') {
-      const { GoogleGenerativeAI } = require('@google/generative-ai');
-      const genAI = new GoogleGenerativeAI(api_key);
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const https = require('https');
 
-      const result = await model.generateContent('Say "Connection successful!" in exactly those words.');
-      const response = await result.response;
-      const text = response.text();
+      // Helper function to make POST request
+      const httpsPost = (url, data) => {
+        return new Promise((resolve, reject) => {
+          const urlObj = new URL(url);
+          const postData = JSON.stringify(data);
 
-      res.json({ success: true, message: text });
+          const options = {
+            hostname: urlObj.hostname,
+            path: urlObj.pathname + urlObj.search,
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(postData)
+            }
+          };
+
+          const req = https.request(options, (res) => {
+            let body = '';
+            res.on('data', (chunk) => body += chunk);
+            res.on('end', () => {
+              try {
+                resolve({ status: res.statusCode, data: JSON.parse(body) });
+              } catch (e) {
+                resolve({ status: res.statusCode, data: body });
+              }
+            });
+          });
+
+          req.on('error', (e) => reject(e));
+          req.setTimeout(30000, () => {
+            req.destroy();
+            reject(new Error('Request timeout'));
+          });
+
+          req.write(postData);
+          req.end();
+        });
+      };
+
+      // Models to try in order of preference
+      const modelsToTry = [
+        'gemini-2.0-flash-exp',
+        'gemini-1.5-flash',
+        'gemini-1.5-flash-latest',
+        'gemini-1.5-pro'
+      ];
+
+      for (const model of modelsToTry) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${api_key}`;
+
+          const response = await httpsPost(url, {
+            contents: [{ parts: [{ text: 'Say "Connection successful!" only.' }] }]
+          });
+
+          if (response.status === 200 && response.data && response.data.candidates) {
+            const responseText = response.data.candidates[0]?.content?.parts?.[0]?.text || 'Connection successful!';
+            return res.json({
+              success: true,
+              message: responseText.trim(),
+              model: model
+            });
+          }
+        } catch (modelError) {
+          console.log(`Model ${model} failed:`, modelError.message);
+          // Continue to next model
+        }
+      }
+
+      // All models failed
+      return res.json({
+        success: false,
+        error: 'All Gemini models failed. Please check your API key.',
+        modelsAttempted: modelsToTry
+      });
     } else {
       res.status(400).json({ error: 'Unknown connection type' });
     }
