@@ -9,9 +9,35 @@ const router = express.Router();
 // All routes require authentication
 router.use(authenticate);
 
-// Get all roles
-router.get('/', requirePermission('roles.view'), async (req, res) => {
+// Helper to check if tables exist
+async function checkTablesExist() {
     try {
+        const result = await db.query(`
+            SELECT COUNT(*) as count FROM information_schema.tables 
+            WHERE table_schema = DATABASE() AND table_name IN ('roles', 'permissions', 'role_permissions')
+        `);
+        return result[0].count >= 3;
+    } catch (error) {
+        console.error('Check tables error:', error);
+        return false;
+    }
+}
+
+// Get all roles
+router.get('/', async (req, res) => {
+    try {
+        // Check if user has permission (isSuperAdmin or has roles.view)
+        if (!req.user.isSuperAdmin && !(req.user.permissions && req.user.permissions.includes('roles.view'))) {
+            return res.status(403).json({ error: 'Permission denied' });
+        }
+
+        // Check if tables exist
+        const tablesExist = await checkTablesExist();
+        if (!tablesExist) {
+            console.error('RBAC tables do not exist - please run the migration');
+            return res.status(500).json({ error: 'RBAC tables not found. Please run the database migration: server/database/migrations/add_rbac_system.sql' });
+        }
+
         const roles = await db.query(`
       SELECT r.*, 
              (SELECT COUNT(*) FROM users WHERE role_id = r.id) as user_count,
@@ -35,7 +61,8 @@ router.get('/', requirePermission('roles.view'), async (req, res) => {
         res.json({ roles });
     } catch (error) {
         console.error('Get roles error:', error);
-        res.status(500).json({ error: 'Failed to fetch roles' });
+        console.error('Error details:', error.message, error.sql);
+        res.status(500).json({ error: 'Failed to fetch roles: ' + error.message });
     }
 });
 
