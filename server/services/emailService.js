@@ -404,10 +404,10 @@ class EmailService {
       const settings = await this.getSettings();
       if (settings.mailgun_enabled && settings.mailgun_api_key) {
         const mailgun = new Mailgun(FormData);
-        const baseUrl = settings.mailgun_region === 'eu' 
-          ? 'https://api.eu.mailgun.net' 
+        const baseUrl = settings.mailgun_region === 'eu'
+          ? 'https://api.eu.mailgun.net'
           : 'https://api.mailgun.net';
-        
+
         this.mg = mailgun.client({
           username: 'api',
           key: settings.mailgun_api_key,
@@ -434,23 +434,29 @@ class EmailService {
       'site_name', 'site_url'
     ];
 
+    const placeholders = keys.map(() => '?').join(', ');
     const results = await db.query(
-      'SELECT setting_key, setting_value, value_type FROM settings WHERE setting_key IN (?)',
-      [keys]
+      `SELECT setting_key, setting_value, setting_type FROM settings WHERE setting_key IN (${placeholders})`,
+      keys
     );
 
     const settings = {
       site_name: 'Magnetic Clouds',
-      site_url: process.env.SITE_URL || 'https://clouds.hassanscode.com'
+      site_url: process.env.SITE_URL || 'https://magnetic-clouds.com'
     };
-    
-    results.forEach(row => {
-      let value = row.setting_value;
-      if (row.value_type === 'boolean') {
-        value = value === 'true' || value === '1';
-      }
-      settings[row.setting_key] = value;
-    });
+
+    if (results && Array.isArray(results)) {
+      results.forEach(row => {
+        if (row && row.setting_key) {
+          let value = row.setting_value;
+          // Convert boolean strings to actual booleans
+          if (row.setting_type === 'boolean') {
+            value = value === 'true' || value === '1';
+          }
+          settings[row.setting_key] = value;
+        }
+      });
+    }
 
     return settings;
   }
@@ -472,7 +478,7 @@ class EmailService {
     const emailUuid = uuidv4();
     let subject = '';
     let html = '';
-    
+
     try {
       const template = templates[templateName];
       if (!template) {
@@ -588,7 +594,7 @@ class EmailService {
   }
 
   async sendOrderPlaced(order, user) {
-    const itemsHtml = order.items?.map(item => 
+    const itemsHtml = order.items?.map(item =>
       `<p style="margin: 5px 0;">• ${item.name || item.product_type} - $${item.price}</p>`
     ).join('') || '';
 
