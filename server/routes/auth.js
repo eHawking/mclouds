@@ -379,13 +379,7 @@ router.post('/login', [
 
     const { email, password, twofa_code } = req.body;
 
-    // Get user with role permissions
-    const users = await db.query(`
-      SELECT u.*, r.permissions as role_permissions, r.name as role_name
-      FROM users u
-      LEFT JOIN roles r ON u.role_id = r.id
-      WHERE u.email = ?
-    `, [email]);
+    const users = await db.query('SELECT * FROM users WHERE email = ?', [email]);
     if (!users.length) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -432,15 +426,18 @@ router.post('/login', [
       // Ignore - column might not exist
     }
 
-    // Parse permissions
+    // Get permissions from role if assigned
     let permissions = null;
-    if (user.role_permissions) {
+    if (user.role === 'admin' && user.role_id) {
       try {
-        permissions = typeof user.role_permissions === 'string'
-          ? JSON.parse(user.role_permissions)
-          : user.role_permissions;
+        const roleData = await db.query('SELECT permissions FROM roles WHERE id = ?', [user.role_id]);
+        if (roleData.length && roleData[0].permissions) {
+          permissions = typeof roleData[0].permissions === 'string'
+            ? JSON.parse(roleData[0].permissions)
+            : roleData[0].permissions;
+        }
       } catch (e) {
-        permissions = null;
+        console.log('Error loading permissions:', e.message);
       }
     }
 
@@ -462,10 +459,9 @@ router.post('/login', [
         last_name: user.last_name,
         role: user.role,
         role_id: user.role_id,
-        role_name: user.role_name,
-        permissions: permissions,
         avatar: user.avatar,
-        two_factor_enabled: !!user.two_factor_enabled
+        two_factor_enabled: !!user.two_factor_enabled,
+        permissions  // Include permissions in response
       },
       token
     });
