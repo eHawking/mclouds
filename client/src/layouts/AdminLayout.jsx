@@ -12,6 +12,30 @@ import { useAuthStore, useThemeStore } from '../store/useStore'
 import { settingsAPI, adminAPI } from '../lib/api'
 import clsx from 'clsx'
 
+// Permission mapping for menu items
+const PERMISSION_MAP = {
+  '/admin/users': ['users.view', 'users.edit', 'users.delete'],
+  '/admin/proposals': ['proposals.view', 'proposals.edit'],
+  '/admin/invoices': ['invoices.view', 'invoices.edit'],
+  '/admin/orders': ['orders.view', 'orders.edit'],
+  '/admin/ai-chats': ['users.view'],
+  '/admin/pricing': ['pricing.view', 'pricing.edit'],
+  '/admin/payment-gateway': ['settings.view', 'settings.edit'],
+  '/admin/customize-plans': ['pricing.view', 'pricing.edit'],
+  '/admin/domains': ['domains.view', 'domains.edit'],
+  '/admin/settings': ['settings.view', 'settings.edit'],
+  '/admin/header-footer': ['content.view', 'content.edit'],
+  '/admin/pages': ['content.view', 'content.edit'],
+  '/admin/server-management': ['server.view', 'server.manage'],
+  '/admin/email-settings': ['email.view', 'email.send'],
+  '/admin/email-logs': ['email.view'],
+  '/admin/security': ['settings.view', 'settings.edit'],
+  '/admin/roles': ['settings.manage_roles'],
+  '/admin/nobot-services': ['settings.view'],
+  '/admin/ai-agent': ['settings.view'],
+  '/admin/tickets': ['tickets.view', 'tickets.reply', 'tickets.close']
+}
+
 // Simple links (no submenu)
 const simpleLinks = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', exact: true },
@@ -109,6 +133,38 @@ export default function AdminLayout() {
   const isMenuActive = (group) => {
     return group.children.some(child => location.pathname === child.to || location.pathname.startsWith(child.to + '/'))
   }
+
+  // Check if user has permission for a route
+  const hasPermission = (route) => {
+    // Super admin without role_id has all permissions
+    if (user?.role === 'admin' && !user?.role_id) {
+      return true
+    }
+
+    // Get required permissions for this route
+    const requiredPerms = PERMISSION_MAP[route]
+    if (!requiredPerms) return true // No permissions required
+
+    // Check if user has any of the required permissions
+    if (!user?.permissions) return false
+
+    for (const perm of requiredPerms) {
+      const [category, action] = perm.split('.')
+      if (user.permissions[category]?.includes(action)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  // Filter menu items based on permissions
+  const filteredMenuGroups = menuGroups.map(group => ({
+    ...group,
+    visible: hasPermission(group.to),
+    children: group.children.filter(child => hasPermission(child.to))
+  })).filter(group => group.visible || group.children.length > 0)
+
+  const filteredBottomLinks = bottomLinks.filter(link => hasPermission(link.to))
 
   const { data: settingsData } = useQuery({
     queryKey: ['publicSettings'],
@@ -235,7 +291,7 @@ export default function AdminLayout() {
           ))}
 
           {/* Collapsible Menu Groups */}
-          {menuGroups.map((group) => {
+          {filteredMenuGroups.map((group) => {
             const isExpanded = expandedMenus.includes(group.id)
             const hasActiveChild = isMenuActive(group)
             const isMainActive = location.pathname === group.to
@@ -312,7 +368,7 @@ export default function AdminLayout() {
           <div className="my-4 border-t border-dark-700" />
 
           {/* Bottom Links */}
-          {bottomLinks.map((link) => (
+          {filteredBottomLinks.map((link) => (
             <NavLink
               key={link.to}
               to={link.to}

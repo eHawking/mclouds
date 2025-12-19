@@ -379,7 +379,13 @@ router.post('/login', [
 
     const { email, password, twofa_code } = req.body;
 
-    const users = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    // Get user with role permissions
+    const users = await db.query(`
+      SELECT u.*, r.permissions as role_permissions, r.name as role_name
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      WHERE u.email = ?
+    `, [email]);
     if (!users.length) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -426,6 +432,18 @@ router.post('/login', [
       // Ignore - column might not exist
     }
 
+    // Parse permissions
+    let permissions = null;
+    if (user.role_permissions) {
+      try {
+        permissions = typeof user.role_permissions === 'string'
+          ? JSON.parse(user.role_permissions)
+          : user.role_permissions;
+      } catch (e) {
+        permissions = null;
+      }
+    }
+
     const token = generateToken({ uuid: user.uuid, email: user.email, role: user.role });
 
     res.cookie('token', token, {
@@ -443,6 +461,9 @@ router.post('/login', [
         first_name: user.first_name,
         last_name: user.last_name,
         role: user.role,
+        role_id: user.role_id,
+        role_name: user.role_name,
+        permissions: permissions,
         avatar: user.avatar,
         two_factor_enabled: !!user.two_factor_enabled
       },
