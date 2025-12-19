@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MessageCircle, X, Minimize2, Send, Check, CheckCheck, RotateCcw, WifiOff } from 'lucide-react'
+import { MessageCircle, X, Minimize2, Send, Check, CheckCheck, RotateCcw } from 'lucide-react'
 import { useAIAgent } from '../contexts/AIAgentContext'
 import clsx from 'clsx'
 
@@ -28,11 +28,9 @@ export default function AIChatWidget() {
   const [isMinimized, setIsMinimized] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [chatId, setChatId] = useState(null)
-  const [chatStatus, setChatStatus] = useState('idle') // idle, queued, connected, ended, offline
+  const [chatStatus, setChatStatus] = useState('idle') // idle, queued, connected, ended
   const [userName, setUserName] = useState('Guest')
   const [unreadCount, setUnreadCount] = useState(0)
-  const [isOffline, setIsOffline] = useState(false)
-  const [messageQueue, setMessageQueue] = useState([])
 
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
@@ -76,28 +74,16 @@ export default function AIChatWidget() {
     if (followUpTimerRef.current) clearTimeout(followUpTimerRef.current)
     if (endChatTimerRef.current) clearTimeout(endChatTimerRef.current)
 
-    // Typing delay - shorter for more natural feel
-    await new Promise(resolve => setTimeout(resolve, Math.min(settings.typingStartDelay, 3000)))
+    // Typing delay
+    await new Promise(resolve => setTimeout(resolve, settings.typingStartDelay))
     setIsTyping(true)
 
     // Get response
     const response = await sendMessage(userMessage)
 
-    // Check if API failed
-    if (response === null || response === '__OFFLINE__') {
-      setIsTyping(false)
-      setIsOffline(true)
-      addMessage({
-        type: 'system',
-        content: 'Support is currently offline. Please try again later or email support@magnetic-clouds.com'
-      })
-      setChatStatus('offline')
-      return
-    }
-
-    // Calculate typing duration based on word count - more realistic
-    const wordCount = response ? response.split(' ').length : 5
-    const typingDuration = Math.min(wordCount * 150, 4000) // Faster typing, max 4 seconds
+    // Calculate typing duration based on word count
+    const wordCount = response ? response.split(' ').length : 10
+    const typingDuration = Math.min(wordCount * settings.replyTimePerWord, 15000)
 
     await new Promise(resolve => setTimeout(resolve, typingDuration))
     setIsTyping(false)
@@ -493,17 +479,6 @@ export default function AIChatWidget() {
                       <RotateCcw className="w-4 h-4" />
                       Start New Chat
                     </button>
-                  ) : isOffline ? (
-                    <div className="flex items-center gap-3 text-dark-500">
-                      <WifiOff className="w-5 h-5" />
-                      <span className="text-sm">Support is currently offline</span>
-                      <button
-                        onClick={handleNewChat}
-                        className="ml-auto px-3 py-1.5 bg-dark-200 dark:bg-dark-700 rounded-lg text-sm hover:bg-dark-300 dark:hover:bg-dark-600"
-                      >
-                        Try Again
-                      </button>
-                    </div>
                   ) : (
                     <div className="flex items-center gap-2">
                       <input
@@ -512,7 +487,7 @@ export default function AIChatWidget() {
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyPress={handleKeyPress}
-                        placeholder={isTyping ? "Type your message..." : "Type your message..."}
+                        placeholder="Type your message..."
                         className="flex-1 px-4 py-3 bg-dark-100 dark:bg-dark-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
                       <button

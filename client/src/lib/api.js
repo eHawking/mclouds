@@ -280,16 +280,6 @@ export const nobotAPI = {
   sendMessage: (uuid, conversationId, message) => api.post(`/nobot/${uuid}/conversations/${conversationId}/message`, { message }),
 }
 
-// AI Agent API
-export const aiAgentAPI = {
-  getSettings: () => api.get('/ai-agent/settings/admin'),
-  saveSettings: (data) => api.post('/ai-agent/settings', data),
-  train: (websiteUrl) => api.post('/ai-agent/train', { websiteUrl }),
-  getTrainingStatus: () => api.get('/ai-agent/training-status'),
-  testConnection: (apiKey) => api.post('/ai-agent/test', { apiKey }),
-  validateKey: (apiKey) => api.post('/ai-agent/validate', { apiKey }),
-}
-
 // Roles API
 export const rolesAPI = {
   getAll: () => api.get('/roles'),
@@ -303,4 +293,3 @@ export const rolesAPI = {
 }
 
 export default api
-

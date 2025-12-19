@@ -176,22 +176,10 @@ export function AIAgentProvider({ children }) {
         chatHistory: chatHistory.slice(-10) // Last 10 messages for context
       })
 
-      if (response.data.error) {
-        addLog('error', `Chat error: ${response.data.error}`)
-        // Return offline signal if API returned error
-        return '__OFFLINE__'
-      }
-
       return response.data.response
     } catch (error) {
       console.error('AI chat error:', error)
       addLog('error', `Chat error: ${error.message}`)
-      // Network error or server down - signal offline
-      if (error.code === 'ECONNABORTED' || error.message.includes('timeout') ||
-        error.message.includes('Network') || !error.response) {
-        return '__OFFLINE__'
-      }
-      // Other errors - try fallback
       return getFallbackResponse(message)
     }
   }, [apiKey, currentAgent, chatHistory, getFallbackResponse, addLog])
@@ -271,15 +259,31 @@ export function AIAgentProvider({ children }) {
     return () => clearTimers()
   }, [clearTimers])
 
-  // Fetch AI agent settings from server on mount
+  // Fetch AI agent settings from server on mount (for chat widget)
   useEffect(() => {
     const fetchSettings = async () => {
       try {
+        // First get public settings (enabled state)
         const response = await api.get('/ai-agent/settings')
         if (response.data) {
           setIsEnabled(response.data.enabled && response.data.hasApiKey)
-          setSettingsLoaded(true)
         }
+
+        // Try to get admin settings for timing (if accessible)
+        try {
+          const adminResponse = await api.get('/ai-agent/settings/admin')
+          if (adminResponse.data?.settings) {
+            setSettings(prev => ({
+              ...defaultSettings,
+              ...prev,
+              ...adminResponse.data.settings
+            }))
+          }
+        } catch (e) {
+          // Admin settings not accessible, use defaults - this is fine for regular users
+        }
+
+        setSettingsLoaded(true)
       } catch (error) {
         console.error('Failed to fetch AI agent settings:', error)
         setSettingsLoaded(true)

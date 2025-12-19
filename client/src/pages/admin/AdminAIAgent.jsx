@@ -4,10 +4,10 @@ import { motion } from 'framer-motion'
 import {
   Bot, Key, Eye, EyeOff, Save, RefreshCw, Check, X,
   Settings, Clock, MessageSquare, Trash2, ExternalLink,
-  Power, Zap, Loader2, GraduationCap, Globe
+  Power, Zap, Loader2
 } from 'lucide-react'
 import { useAIAgent } from '../../contexts/AIAgentContext'
-import api, { aiAgentAPI } from '../../lib/api'
+import api from '../../lib/api'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 
@@ -36,9 +36,6 @@ export default function AdminAIAgent() {
   const [testResult, setTestResult] = useState(null)
   const [localSettings, setLocalSettings] = useState(settings)
   const [isLoading, setIsLoading] = useState(true)
-  const [websiteUrl, setWebsiteUrl] = useState('https://magnetic-clouds.com')
-  const [isTraining, setIsTraining] = useState(false)
-  const [trainingStatus, setTrainingStatus] = useState({ isTrained: false, trainedAt: null })
 
   // Fetch saved settings from server on mount
   useEffect(() => {
@@ -54,11 +51,6 @@ export default function AdminAIAgent() {
           if (response.data.settings) {
             setLocalSettings(response.data.settings)
           }
-        }
-        // Fetch training status
-        const statusRes = await aiAgentAPI.getTrainingStatus()
-        if (statusRes.data) {
-          setTrainingStatus(statusRes.data)
         }
       } catch (error) {
         console.error('Failed to fetch AI agent settings:', error)
@@ -120,26 +112,33 @@ export default function AdminAIAgent() {
     toast.success('Logs cleared')
   }
 
-  const handleTrainAgent = async () => {
-    if (!websiteUrl.trim()) {
-      toast.error('Please enter a website URL')
+  const [isTraining, setIsTraining] = useState(false)
+  const [trainingUrl, setTrainingUrl] = useState('')
+
+  const handleTrainAllAgents = async () => {
+    if (!newApiKey.trim()) {
+      toast.error('Please enter and validate API key first')
       return
     }
+
     setIsTraining(true)
     try {
-      const response = await aiAgentAPI.train(websiteUrl)
-      if (response.data.success) {
-        toast.success('Training completed successfully!')
-        setTrainingStatus({
-          isTrained: true,
-          trainedAt: response.data.trainedAt,
-          contentLength: response.data.contentLength
+      const response = await fetch('/api/ai-agent/train', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiKey: newApiKey,
+          websiteUrl: trainingUrl || 'https://magnetic-clouds.com'
         })
+      })
+      const data = await response.json()
+      if (data.success) {
+        toast.success('All agents trained successfully!')
       } else {
-        toast.error(response.data.error || 'Training failed')
+        toast.error(data.message || 'Training failed')
       }
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Training failed')
+      toast.error('Failed to train agents: ' + error.message)
     }
     setIsTraining(false)
   }
@@ -308,61 +307,38 @@ export default function AdminAIAgent() {
                 {testResult.response && <p className="text-xs mt-2 opacity-75">Response: {testResult.response}</p>}
               </div>
             )}
-          </div>
-        </div>
 
-        {/* AI Training */}
-        <div className="card p-6">
-          <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
-            <GraduationCap className="w-5 h-5 text-indigo-500" />
-            AI Training
-          </h2>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Website URL for Training</label>
-              <div className="relative">
-                <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-400" />
+            {/* Train All Agents Section */}
+            <div className="mt-6 pt-6 border-t border-dark-200 dark:border-dark-700">
+              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                <Bot className="w-4 h-4 text-purple-500" />
+                Train All Agents
+              </h3>
+              <p className="text-xs text-dark-500 mb-3">
+                Train all AI agents using your website content for better responses.
+              </p>
+              <div className="space-y-3">
                 <input
                   type="url"
-                  value={websiteUrl}
-                  onChange={(e) => setWebsiteUrl(e.target.value)}
-                  placeholder="https://your-website.com"
-                  className="input pl-10 w-full"
+                  value={trainingUrl}
+                  onChange={(e) => setTrainingUrl(e.target.value)}
+                  placeholder="https://magnetic-clouds.com"
+                  className="input w-full text-sm"
                 />
+                <button
+                  onClick={handleTrainAllAgents}
+                  disabled={isTraining || !newApiKey.trim()}
+                  className="btn-primary w-full flex items-center justify-center gap-2"
+                >
+                  {isTraining ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Bot className="w-4 h-4" />
+                  )}
+                  {isTraining ? 'Training...' : 'Train All Agents'}
+                </button>
               </div>
-              <p className="text-xs text-dark-400 mt-2">The AI will learn about your services from this website</p>
             </div>
-
-            {trainingStatus.isTrained && (
-              <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm">
-                <p className="font-medium flex items-center gap-2">
-                  <Check className="w-4 h-4" />
-                  Training Complete
-                </p>
-                <p className="text-xs mt-1 opacity-75">
-                  Last trained: {new Date(trainingStatus.trainedAt).toLocaleString()}
-                </p>
-              </div>
-            )}
-
-            <button
-              onClick={handleTrainAgent}
-              disabled={isTraining}
-              className="btn-primary w-full flex items-center justify-center gap-2"
-            >
-              {isTraining ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Training...
-                </>
-              ) : (
-                <>
-                  <GraduationCap className="w-4 h-4" />
-                  {trainingStatus.isTrained ? 'Re-train Agent' : 'Train Agent'}
-                </>
-              )}
-            </button>
           </div>
         </div>
 
