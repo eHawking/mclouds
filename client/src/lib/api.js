@@ -282,14 +282,14 @@ export const nobotAPI = {
 
 // Roles API
 export const rolesAPI = {
-  getRoles: () => api.get('/roles'),
-  getRole: (uuid) => api.get(`/roles/${uuid}`),
-  getPermissions: () => api.get('/roles/permissions'),
-  createRole: (data) => api.post('/roles', data),
-  updateRole: (uuid, data) => api.put(`/roles/${uuid}`, data),
-  deleteRole: (uuid) => api.delete(`/roles/${uuid}`),
-  getAdminUsers: () => api.get('/roles/admin-users/list'),
-  assignRole: (userUuid, roleId) => api.put(`/roles/assign/${userUuid}`, { role_id: roleId }),
+  getAll: () => api.get('/roles'),
+  getOne: (uuid) => api.get(`/roles/${uuid}`),
+  create: (data) => api.post('/roles', data),
+  update: (uuid, data) => api.put(`/roles/${uuid}`, data),
+  delete: (uuid) => api.delete(`/roles/${uuid}`),
+  getUsers: (uuid) => api.get(`/roles/${uuid}/users`),
+  assignRole: (user_uuid, role_uuid) => api.post('/roles/assign', { user_uuid, role_uuid }),
+  getPermissions: () => api.get('/roles/meta/permissions')
 }
 
 export default api

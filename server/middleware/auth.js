@@ -3,48 +3,6 @@ const db = require('../database/connection');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-// Cache for role permissions (refresh every 5 minutes)
-let permissionCache = {};
-let cacheTimestamp = 0;
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-// Load all role permissions into cache
-async function loadPermissionCache() {
-  if (Date.now() - cacheTimestamp < CACHE_TTL && Object.keys(permissionCache).length > 0) {
-    return;
-  }
-
-  try {
-    const results = await db.query(`
-      SELECT r.id as role_id, r.slug as role_slug, r.is_system, r.can_create_roles,
-             GROUP_CONCAT(p.slug) as permissions
-      FROM roles r
-      LEFT JOIN role_permissions rp ON r.id = rp.role_id
-      LEFT JOIN permissions p ON rp.permission_id = p.id
-      GROUP BY r.id
-    `);
-
-    permissionCache = {};
-    for (const row of results) {
-      permissionCache[row.role_id] = {
-        slug: row.role_slug,
-        isSystem: !!row.is_system,
-        canCreateRoles: !!row.can_create_roles,
-        permissions: row.permissions ? row.permissions.split(',') : []
-      };
-    }
-    cacheTimestamp = Date.now();
-  } catch (error) {
-    console.error('Failed to load permission cache:', error.message);
-  }
-}
-
-// Clear cache when roles/permissions are modified
-function clearPermissionCache() {
-  permissionCache = {};
-  cacheTimestamp = 0;
-}
-
 async function authenticate(req, res, next) {
   try {
     const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
@@ -54,26 +12,13 @@ async function authenticate(req, res, next) {
     }
 
     const decoded = jwt.verify(token, JWT_SECRET);
-
-    // Try to get user with role info, fall back to simple query if roles table doesn't exist
-    let users;
-    try {
-      users = await db.query(`
-        SELECT u.id, u.uuid, u.email, u.first_name, u.last_name, u.role, u.status, u.role_id,
-               r.slug as role_slug, r.is_system, r.can_create_roles
-        FROM users u
-        LEFT JOIN roles r ON u.role_id = r.id
-        WHERE u.uuid = ?
-      `, [decoded.uuid]);
-    } catch (queryError) {
-      // If roles table doesn't exist, fall back to simple query
-      console.log('Roles table may not exist, falling back to simple user query');
-      users = await db.query(`
-        SELECT id, uuid, email, first_name, last_name, role, status, role_id
-        FROM users
-        WHERE uuid = ?
-      `, [decoded.uuid]);
-    }
+    const users = await db.query(`
+      SELECT u.id, u.uuid, u.email, u.first_name, u.last_name, u.role, u.status, u.role_id,
+             r.permissions as role_permissions, r.name as role_name
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      WHERE u.uuid = ?
+    `, [decoded.uuid]);
 
     if (!users.length) {
       return res.status(401).json({ error: 'User not found' });
@@ -83,32 +28,16 @@ async function authenticate(req, res, next) {
       return res.status(403).json({ error: 'Account is not active' });
     }
 
+    // Parse permissions if available
     const user = users[0];
-
-    // Try to load permissions from cache (will silently fail if tables don't exist)
-    try {
-      await loadPermissionCache();
-    } catch (cacheError) {
-      console.log('Could not load permission cache, continuing without');
-    }
-
-    // Attach permissions to user
-    if (user.role_id && permissionCache[user.role_id]) {
-      user.permissions = permissionCache[user.role_id].permissions;
-      user.isSuperAdmin = permissionCache[user.role_id].isSystem;
-      user.canCreateRoles = permissionCache[user.role_id].canCreateRoles || user.isSuperAdmin;
+    if (user.role_permissions) {
+      user.permissions = typeof user.role_permissions === 'string'
+        ? JSON.parse(user.role_permissions)
+        : user.role_permissions;
     } else {
-      user.permissions = [];
-      user.isSuperAdmin = false;
-      user.canCreateRoles = false;
+      user.permissions = null;
     }
-
-    // Legacy role check - if user has old 'admin' role but no role_id, treat as super admin
-    if (user.role === 'admin' && !user.role_id) {
-      user.isSuperAdmin = true;
-      user.canCreateRoles = true;
-      user.permissions = ['*']; // All permissions
-    }
+    delete user.role_permissions;
 
     req.user = user;
     next();
@@ -116,24 +45,17 @@ async function authenticate(req, res, next) {
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ error: 'Token expired' });
     }
-    console.error('Auth error:', error.message);
     return res.status(401).json({ error: 'Invalid token' });
   }
 }
 
-// Check if user has required role(s)
 function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Super admin bypasses role check
-    if (req.user.isSuperAdmin) {
-      return next();
-    }
-
-    if (!roles.includes(req.user.role) && !roles.includes(req.user.role_slug)) {
+    if (!roles.includes(req.user.role)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -141,43 +63,53 @@ function requireRole(...roles) {
   };
 }
 
-// Check if user has required permission(s)
-function requirePermission(...permissions) {
+// Check specific permission (e.g., 'users.view', 'tickets.reply')
+function requirePermission(category, action) {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Super admin has all permissions
-    if (req.user.isSuperAdmin || (req.user.permissions && req.user.permissions.includes('*'))) {
+    // Super admin check - if user is admin without role_id, allow all (legacy super admin)
+    if (req.user.role === 'admin' && !req.user.role_id) {
       return next();
     }
 
-    // Check if user has at least one of the required permissions
-    const hasPermission = permissions.some(p =>
-      req.user.permissions && req.user.permissions.includes(p)
-    );
-
-    if (!hasPermission) {
-      return res.status(403).json({ error: 'Permission denied' });
+    // Check permissions from role
+    if (req.user.permissions) {
+      const categoryPerms = req.user.permissions[category];
+      if (categoryPerms && categoryPerms.includes(action)) {
+        return next();
+      }
     }
 
-    next();
+    return res.status(403).json({ error: 'Permission denied' });
   };
 }
 
-// Check if user is super admin (for delete operations, role management, etc.)
-function requireSuperAdmin() {
+// Check if user has any of the specified permissions
+function requireAnyPermission(permissions) {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    if (!req.user.isSuperAdmin) {
-      return res.status(403).json({ error: 'Super Admin access required' });
+    // Super admin check
+    if (req.user.role === 'admin' && !req.user.role_id) {
+      return next();
     }
 
-    next();
+    if (req.user.permissions) {
+      for (const perm of permissions) {
+        const [category, action] = perm.split('.');
+        const categoryPerms = req.user.permissions[category];
+        if (categoryPerms && categoryPerms.includes(action)) {
+          return next();
+        }
+      }
+    }
+
+    return res.status(403).json({ error: 'Permission denied' });
   };
 }
 
@@ -215,9 +147,7 @@ module.exports = {
   authenticate,
   requireRole,
   requirePermission,
-  requireSuperAdmin,
+  requireAnyPermission,
   optionalAuth,
-  generateToken,
-  clearPermissionCache
+  generateToken
 };
-
