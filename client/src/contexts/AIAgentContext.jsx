@@ -112,7 +112,7 @@ export function AIAgentProvider({ children }) {
     try {
       addLog('info', 'Validating API key...')
       const response = await api.post('/ai-agent/validate', { apiKey: newApiKey })
-      
+
       if (response.data.valid) {
         setApiKey(newApiKey)
         setIsApiValid(true)
@@ -141,7 +141,7 @@ export function AIAgentProvider({ children }) {
   // Get fallback response based on message content
   const getFallbackResponse = useCallback((message) => {
     const lowerMsg = message.toLowerCase()
-    
+
     if (lowerMsg.includes('price') || lowerMsg.includes('cost') || lowerMsg.includes('plan')) {
       return fallbackResponses.pricing[Math.floor(Math.random() * fallbackResponses.pricing.length)]
     }
@@ -154,7 +154,7 @@ export function AIAgentProvider({ children }) {
     if (lowerMsg.includes('hi') || lowerMsg.includes('hello') || lowerMsg.includes('hey')) {
       return fallbackResponses.greeting[Math.floor(Math.random() * fallbackResponses.greeting.length)]
     }
-    
+
     return fallbackResponses.general[Math.floor(Math.random() * fallbackResponses.general.length)]
   }, [])
 
@@ -176,10 +176,22 @@ export function AIAgentProvider({ children }) {
         chatHistory: chatHistory.slice(-10) // Last 10 messages for context
       })
 
+      if (response.data.error) {
+        addLog('error', `Chat error: ${response.data.error}`)
+        // Return offline signal if API returned error
+        return '__OFFLINE__'
+      }
+
       return response.data.response
     } catch (error) {
       console.error('AI chat error:', error)
       addLog('error', `Chat error: ${error.message}`)
+      // Network error or server down - signal offline
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout') ||
+        error.message.includes('Network') || !error.response) {
+        return '__OFFLINE__'
+      }
+      // Other errors - try fallback
       return getFallbackResponse(message)
     }
   }, [apiKey, currentAgent, chatHistory, getFallbackResponse, addLog])
@@ -190,7 +202,7 @@ export function AIAgentProvider({ children }) {
       const updated = [chatData, ...prev].slice(0, 100) // Max 100 chats
       try {
         localStorage.setItem('ai_agent_chats', JSON.stringify(updated))
-      } catch {}
+      } catch { }
       return updated
     })
     addLog('info', `Chat ${chatData.chatId} saved`)
@@ -202,7 +214,7 @@ export function AIAgentProvider({ children }) {
       const updated = prev.filter(c => c.chatId !== chatId)
       try {
         localStorage.setItem('ai_agent_chats', JSON.stringify(updated))
-      } catch {}
+      } catch { }
       return updated
     })
     addLog('info', `Chat ${chatId} deleted`)
@@ -213,7 +225,7 @@ export function AIAgentProvider({ children }) {
     setSavedChats([])
     try {
       localStorage.removeItem('ai_agent_chats')
-    } catch {}
+    } catch { }
     addLog('info', 'All chats cleared')
   }, [addLog])
 

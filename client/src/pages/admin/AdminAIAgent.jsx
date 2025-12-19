@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { motion } from 'framer-motion'
-import { 
-  Bot, Key, Eye, EyeOff, Save, RefreshCw, Check, X, 
+import {
+  Bot, Key, Eye, EyeOff, Save, RefreshCw, Check, X,
   Settings, Clock, MessageSquare, Trash2, ExternalLink,
-  Power, Zap, Loader2
+  Power, Zap, Loader2, GraduationCap, Globe
 } from 'lucide-react'
 import { useAIAgent } from '../../contexts/AIAgentContext'
-import api from '../../lib/api'
+import api, { aiAgentAPI } from '../../lib/api'
 import clsx from 'clsx'
 import toast from 'react-hot-toast'
 
@@ -36,6 +36,9 @@ export default function AdminAIAgent() {
   const [testResult, setTestResult] = useState(null)
   const [localSettings, setLocalSettings] = useState(settings)
   const [isLoading, setIsLoading] = useState(true)
+  const [websiteUrl, setWebsiteUrl] = useState('https://magnetic-clouds.com')
+  const [isTraining, setIsTraining] = useState(false)
+  const [trainingStatus, setTrainingStatus] = useState({ isTrained: false, trainedAt: null })
 
   // Fetch saved settings from server on mount
   useEffect(() => {
@@ -51,6 +54,11 @@ export default function AdminAIAgent() {
           if (response.data.settings) {
             setLocalSettings(response.data.settings)
           }
+        }
+        // Fetch training status
+        const statusRes = await aiAgentAPI.getTrainingStatus()
+        if (statusRes.data) {
+          setTrainingStatus(statusRes.data)
         }
       } catch (error) {
         console.error('Failed to fetch AI agent settings:', error)
@@ -112,10 +120,34 @@ export default function AdminAIAgent() {
     toast.success('Logs cleared')
   }
 
+  const handleTrainAgent = async () => {
+    if (!websiteUrl.trim()) {
+      toast.error('Please enter a website URL')
+      return
+    }
+    setIsTraining(true)
+    try {
+      const response = await aiAgentAPI.train(websiteUrl)
+      if (response.data.success) {
+        toast.success('Training completed successfully!')
+        setTrainingStatus({
+          isTrained: true,
+          trainedAt: response.data.trainedAt,
+          contentLength: response.data.contentLength
+        })
+      } else {
+        toast.error(response.data.error || 'Training failed')
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Training failed')
+    }
+    setIsTraining(false)
+  }
+
   return (
     <>
       <Helmet><title>AI Agent - Admin - Magnetic Clouds</title></Helmet>
-      
+
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-3">
@@ -128,8 +160,8 @@ export default function AdminAIAgent() {
           onClick={() => toggleEnabled(!isEnabled)}
           className={clsx(
             "flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all",
-            isEnabled 
-              ? "bg-green-500 text-white hover:bg-green-600" 
+            isEnabled
+              ? "bg-green-500 text-white hover:bg-green-600"
               : "bg-dark-200 dark:bg-dark-700 text-dark-600 dark:text-dark-400 hover:bg-dark-300 dark:hover:bg-dark-600"
           )}
         >
@@ -151,7 +183,7 @@ export default function AdminAIAgent() {
             </div>
           </div>
         </div>
-        
+
         <div className="card p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -210,7 +242,7 @@ export default function AdminAIAgent() {
             <Key className="w-5 h-5 text-indigo-500" />
             API Configuration
           </h2>
-          
+
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">Google Gemini API Key</label>
@@ -279,13 +311,68 @@ export default function AdminAIAgent() {
           </div>
         </div>
 
+        {/* AI Training */}
+        <div className="card p-6">
+          <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
+            <GraduationCap className="w-5 h-5 text-indigo-500" />
+            AI Training
+          </h2>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Website URL for Training</label>
+              <div className="relative">
+                <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-400" />
+                <input
+                  type="url"
+                  value={websiteUrl}
+                  onChange={(e) => setWebsiteUrl(e.target.value)}
+                  placeholder="https://your-website.com"
+                  className="input pl-10 w-full"
+                />
+              </div>
+              <p className="text-xs text-dark-400 mt-2">The AI will learn about your services from this website</p>
+            </div>
+
+            {trainingStatus.isTrained && (
+              <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm">
+                <p className="font-medium flex items-center gap-2">
+                  <Check className="w-4 h-4" />
+                  Training Complete
+                </p>
+                <p className="text-xs mt-1 opacity-75">
+                  Last trained: {new Date(trainingStatus.trainedAt).toLocaleString()}
+                </p>
+              </div>
+            )}
+
+            <button
+              onClick={handleTrainAgent}
+              disabled={isTraining}
+              className="btn-primary w-full flex items-center justify-center gap-2"
+            >
+              {isTraining ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Training...
+                </>
+              ) : (
+                <>
+                  <GraduationCap className="w-4 h-4" />
+                  {trainingStatus.isTrained ? 'Re-train Agent' : 'Train Agent'}
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
         {/* Chat Timing Settings */}
         <div className="card p-6">
           <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
             <Clock className="w-5 h-5 text-indigo-500" />
             Chat Timing Settings
           </h2>
-          
+
           <div className="space-y-6">
             <div>
               <div className="flex justify-between mb-2">
@@ -427,7 +514,7 @@ export default function AdminAIAgent() {
             <Bot className="w-5 h-5 text-indigo-500" />
             Agent Profiles Preview
           </h2>
-          
+
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
             {agentProfiles.slice(0, 10).map((agent) => (
               <div key={agent.id} className="text-center p-4 rounded-xl bg-dark-50 dark:bg-dark-700/50">

@@ -231,6 +231,19 @@ router.post('/chat', async (req, res) => {
   }
 
   try {
+    // Load custom training data from database
+    let customTrainingData = '';
+    try {
+      const trainingResult = await db.query(
+        "SELECT setting_value FROM settings WHERE setting_key = 'ai_agent_training_data'"
+      );
+      if (trainingResult && trainingResult.length > 0) {
+        customTrainingData = trainingResult[0].setting_value || '';
+      }
+    } catch (e) {
+      console.log('No custom training data found');
+    }
+
     // Build conversation history for context
     const conversationContext = chatHistory
       ?.filter(m => m.type === 'user' || m.type === 'agent')
@@ -239,18 +252,21 @@ router.post('/chat', async (req, res) => {
         parts: [{ text: m.content }]
       })) || [];
 
-    // System prompt with agent identity
+    // System prompt with agent identity + custom training
     const systemPrompt = `
 ${knowledgeBase}
+
+${customTrainingData ? `ADDITIONAL TRAINING DATA:\n${customTrainingData}\n` : ''}
 
 YOUR IDENTITY FOR THIS CONVERSATION:
 - Your name is: ${agentName}
 - Respond in: ${language === 'bn' ? 'Bengali (Bangla)' : 'English'}
-- Remember: You are a real human, not an AI
+- Remember: You are a real human, not an AI. Never reveal you are AI.
+- Keep responses brief and natural (2-4 sentences max)
 
 Current customer message: ${message}
 
-Respond naturally as ${agentName} would. Keep it brief and helpful.
+Respond naturally as ${agentName} would. Be helpful, friendly, and professional.
 `;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`;
@@ -412,4 +428,144 @@ router.post('/settings', authenticate, requireRole('admin'), async (req, res) =>
   }
 });
 
+// Auto-train agent from website content
+router.post('/train', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    const { websiteUrl } = req.body;
+
+    if (!websiteUrl) {
+      return res.status(400).json({ error: 'Website URL is required' });
+    }
+
+    console.log('Starting AI agent training from:', websiteUrl);
+
+    // Fetch website content
+    const http = websiteUrl.startsWith('https') ? https : require('http');
+
+    const fetchPage = (url) => {
+      return new Promise((resolve, reject) => {
+        const urlObj = new URL(url);
+        const options = {
+          hostname: urlObj.hostname,
+          path: urlObj.pathname + urlObj.search,
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; MagneticClouds/1.0)',
+            'Accept': 'text/html'
+          }
+        };
+
+        const req = http.request(options, (response) => {
+          let body = '';
+          response.on('data', (chunk) => body += chunk);
+          response.on('end', () => resolve(body));
+        });
+
+        req.on('error', reject);
+        req.setTimeout(15000, () => {
+          req.destroy();
+          reject(new Error('Timeout'));
+        });
+        req.end();
+      });
+    };
+
+    // Fetch homepage
+    let htmlContent = '';
+    try {
+      htmlContent = await fetchPage(websiteUrl);
+    } catch (fetchError) {
+      console.error('Failed to fetch website:', fetchError);
+      return res.status(400).json({ error: 'Failed to fetch website: ' + fetchError.message });
+    }
+
+    // Extract text content (simple HTML to text)
+    const extractText = (html) => {
+      return html
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove scripts
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')   // Remove styles
+        .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, '')       // Remove nav
+        .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '') // Remove footer
+        .replace(/<[^>]+>/g, ' ')                          // Remove HTML tags
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/\s+/g, ' ')                              // Normalize whitespace
+        .trim()
+        .substring(0, 50000);                              // Limit to 50KB
+    };
+
+    const textContent = extractText(htmlContent);
+
+    // Generate training data
+    const trainingData = `
+WEBSITE CONTENT FROM ${websiteUrl}:
+${textContent}
+
+Based on the above content, you can answer questions about this company's services, products, and policies.
+Always respond as a helpful human support agent.
+`;
+
+    // Save training data to database
+    const existsTraining = await db.query("SELECT 1 FROM settings WHERE setting_key = 'ai_agent_training_data'");
+    if (existsTraining && existsTraining.length > 0) {
+      await db.query("UPDATE settings SET setting_value = ? WHERE setting_key = 'ai_agent_training_data'", [trainingData]);
+    } else {
+      await db.query("INSERT INTO settings (setting_key, setting_value) VALUES ('ai_agent_training_data', ?)", [trainingData]);
+    }
+
+    // Mark training as complete
+    const trainedAt = new Date().toISOString();
+    const existsTrained = await db.query("SELECT 1 FROM settings WHERE setting_key = 'ai_agent_trained_at'");
+    if (existsTrained && existsTrained.length > 0) {
+      await db.query("UPDATE settings SET setting_value = ? WHERE setting_key = 'ai_agent_trained_at'", [trainedAt]);
+    } else {
+      await db.query("INSERT INTO settings (setting_key, setting_value) VALUES ('ai_agent_trained_at', ?)", [trainedAt]);
+    }
+
+    console.log('AI agent training completed successfully');
+    res.json({
+      success: true,
+      message: 'Training completed successfully',
+      contentLength: textContent.length,
+      trainedAt
+    });
+  } catch (error) {
+    console.error('AI agent training error:', error);
+    res.status(500).json({ error: 'Training failed: ' + error.message });
+  }
+});
+
+// Get training status
+router.get('/training-status', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    const result = await db.query(
+      "SELECT setting_key, setting_value FROM settings WHERE setting_key IN ('ai_agent_trained_at', 'ai_agent_training_data')"
+    );
+
+    const status = {
+      isTrained: false,
+      trainedAt: null,
+      contentLength: 0
+    };
+
+    for (const row of result) {
+      if (row.setting_key === 'ai_agent_trained_at') {
+        status.trainedAt = row.setting_value;
+        status.isTrained = true;
+      }
+      if (row.setting_key === 'ai_agent_training_data') {
+        status.contentLength = row.setting_value?.length || 0;
+      }
+    }
+
+    res.json(status);
+  } catch (error) {
+    console.error('Get training status error:', error);
+    res.json({ isTrained: false, trainedAt: null, contentLength: 0 });
+  }
+});
+
 module.exports = router;
+

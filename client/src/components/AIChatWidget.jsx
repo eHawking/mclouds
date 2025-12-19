@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MessageCircle, X, Minimize2, Send, Check, CheckCheck, RotateCcw } from 'lucide-react'
+import { MessageCircle, X, Minimize2, Send, Check, CheckCheck, RotateCcw, WifiOff } from 'lucide-react'
 import { useAIAgent } from '../contexts/AIAgentContext'
 import clsx from 'clsx'
 
@@ -28,10 +28,12 @@ export default function AIChatWidget() {
   const [isMinimized, setIsMinimized] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [chatId, setChatId] = useState(null)
-  const [chatStatus, setChatStatus] = useState('idle') // idle, queued, connected, ended
+  const [chatStatus, setChatStatus] = useState('idle') // idle, queued, connected, ended, offline
   const [userName, setUserName] = useState('Guest')
   const [unreadCount, setUnreadCount] = useState(0)
-  
+  const [isOffline, setIsOffline] = useState(false)
+  const [messageQueue, setMessageQueue] = useState([])
+
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -74,17 +76,29 @@ export default function AIChatWidget() {
     if (followUpTimerRef.current) clearTimeout(followUpTimerRef.current)
     if (endChatTimerRef.current) clearTimeout(endChatTimerRef.current)
 
-    // Typing delay
-    await new Promise(resolve => setTimeout(resolve, settings.typingStartDelay))
+    // Typing delay - shorter for more natural feel
+    await new Promise(resolve => setTimeout(resolve, Math.min(settings.typingStartDelay, 3000)))
     setIsTyping(true)
 
     // Get response
     const response = await sendMessage(userMessage)
-    
-    // Calculate typing duration based on word count
-    const wordCount = response ? response.split(' ').length : 10
-    const typingDuration = Math.min(wordCount * settings.replyTimePerWord, 15000)
-    
+
+    // Check if API failed
+    if (response === null || response === '__OFFLINE__') {
+      setIsTyping(false)
+      setIsOffline(true)
+      addMessage({
+        type: 'system',
+        content: 'Support is currently offline. Please try again later or email support@magnetic-clouds.com'
+      })
+      setChatStatus('offline')
+      return
+    }
+
+    // Calculate typing duration based on word count - more realistic
+    const wordCount = response ? response.split(' ').length : 5
+    const typingDuration = Math.min(wordCount * 150, 4000) // Faster typing, max 4 seconds
+
     await new Promise(resolve => setTimeout(resolve, typingDuration))
     setIsTyping(false)
 
@@ -97,17 +111,17 @@ export default function AIChatWidget() {
 
       // Update message status to delivered then read
       setTimeout(() => {
-        setChatHistory(prev => prev.map(m => 
-          m.type === 'agent' && m.status === 'sent' 
-            ? { ...m, status: 'delivered' } 
+        setChatHistory(prev => prev.map(m =>
+          m.type === 'agent' && m.status === 'sent'
+            ? { ...m, status: 'delivered' }
             : m
         ))
       }, 1000)
 
       setTimeout(() => {
-        setChatHistory(prev => prev.map(m => 
-          m.type === 'agent' && m.status === 'delivered' 
-            ? { ...m, status: 'read' } 
+        setChatHistory(prev => prev.map(m =>
+          m.type === 'agent' && m.status === 'delivered'
+            ? { ...m, status: 'read' }
             : m
         ))
       }, 2500)
@@ -138,7 +152,7 @@ export default function AIChatWidget() {
                 content: 'Chat ended'
               })
               setChatStatus('ended')
-              
+
               // Save chat
               saveChat({
                 chatId,
@@ -176,17 +190,17 @@ export default function AIChatWidget() {
 
     // Update user message status
     setTimeout(() => {
-      setChatHistory(prev => prev.map(m => 
-        m.type === 'user' && m.status === 'sent' 
-          ? { ...m, status: 'delivered' } 
+      setChatHistory(prev => prev.map(m =>
+        m.type === 'user' && m.status === 'sent'
+          ? { ...m, status: 'delivered' }
           : m
       ))
     }, 500)
 
     setTimeout(() => {
-      setChatHistory(prev => prev.map(m => 
-        m.type === 'user' && m.status === 'delivered' 
-          ? { ...m, status: 'read' } 
+      setChatHistory(prev => prev.map(m =>
+        m.type === 'user' && m.status === 'delivered'
+          ? { ...m, status: 'read' }
           : m
       ))
     }, 1500)
@@ -196,7 +210,7 @@ export default function AIChatWidget() {
       setChatStatus('queued')
       const newChatId = generateChatId()
       setChatId(newChatId)
-      
+
       addMessage({
         type: 'system',
         content: 'You have been added to the queue. Please wait...'
@@ -207,7 +221,7 @@ export default function AIChatWidget() {
         const agent = rotateAgent()
         setCurrentAgent(agent)
         setChatStatus('connected')
-        
+
         addMessage({
           type: 'system',
           content: `Connected with ${agent.name}`
@@ -218,7 +232,7 @@ export default function AIChatWidget() {
           setIsTyping(true)
           await new Promise(r => setTimeout(r, 2000))
           setIsTyping(false)
-          
+
           addMessage({
             type: 'agent',
             content: `Hi! I'm ${agent.name} from Magnetic Clouds support. How can I help you today?`,
@@ -316,11 +330,11 @@ export default function AIChatWidget() {
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, y: 100, scale: 0.8 }}
-            animate={{ 
-              opacity: 1, 
-              y: 0, 
+            animate={{
+              opacity: 1,
+              y: 0,
               scale: 1,
-              height: isMinimized ? 'auto' : 520 
+              height: isMinimized ? 'auto' : 520
             }}
             exit={{ opacity: 0, y: 100, scale: 0.8 }}
             className={clsx(
@@ -335,8 +349,8 @@ export default function AIChatWidget() {
                   {currentAgent ? (
                     <>
                       <div className="relative">
-                        <img 
-                          src={currentAgent.avatar} 
+                        <img
+                          src={currentAgent.avatar}
                           alt={currentAgent.name}
                           className="w-10 h-10 rounded-full border-2 border-white/30"
                         />
@@ -371,13 +385,13 @@ export default function AIChatWidget() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <button 
+                  <button
                     onClick={() => setIsMinimized(!isMinimized)}
                     className="p-2 hover:bg-white/20 rounded-lg transition-colors"
                   >
                     <Minimize2 className="w-4 h-4" />
                   </button>
-                  <button 
+                  <button
                     onClick={handleClose}
                     className="p-2 hover:bg-white/20 rounded-lg transition-colors"
                   >
@@ -428,8 +442,8 @@ export default function AIChatWidget() {
                         ) : (
                           <div className="flex items-end gap-2">
                             {currentAgent && (
-                              <img 
-                                src={currentAgent.avatar} 
+                              <img
+                                src={currentAgent.avatar}
                                 alt=""
                                 className="w-8 h-8 rounded-full"
                               />
@@ -451,8 +465,8 @@ export default function AIChatWidget() {
                   {/* Typing indicator */}
                   {isTyping && currentAgent && (
                     <div className="flex items-end gap-2">
-                      <img 
-                        src={currentAgent.avatar} 
+                      <img
+                        src={currentAgent.avatar}
                         alt=""
                         className="w-8 h-8 rounded-full"
                       />
@@ -479,6 +493,17 @@ export default function AIChatWidget() {
                       <RotateCcw className="w-4 h-4" />
                       Start New Chat
                     </button>
+                  ) : isOffline ? (
+                    <div className="flex items-center gap-3 text-dark-500">
+                      <WifiOff className="w-5 h-5" />
+                      <span className="text-sm">Support is currently offline</span>
+                      <button
+                        onClick={handleNewChat}
+                        className="ml-auto px-3 py-1.5 bg-dark-200 dark:bg-dark-700 rounded-lg text-sm hover:bg-dark-300 dark:hover:bg-dark-600"
+                      >
+                        Try Again
+                      </button>
+                    </div>
                   ) : (
                     <div className="flex items-center gap-2">
                       <input
@@ -487,13 +512,12 @@ export default function AIChatWidget() {
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyPress={handleKeyPress}
-                        placeholder="Type your message..."
-                        disabled={isTyping}
-                        className="flex-1 px-4 py-3 bg-dark-100 dark:bg-dark-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
+                        placeholder={isTyping ? "Type your message..." : "Type your message..."}
+                        className="flex-1 px-4 py-3 bg-dark-100 dark:bg-dark-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
                       <button
                         onClick={handleSend}
-                        disabled={!inputValue.trim() || isTyping}
+                        disabled={!inputValue.trim()}
                         className="p-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
                       >
                         <Send className="w-5 h-5" />
