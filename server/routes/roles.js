@@ -39,7 +39,7 @@ router.get('/', requirePermission('roles.view'), async (req, res) => {
     }
 });
 
-// Get all available permissions (grouped by department)
+// Get all available permissions (grouped by department) - MUST BE BEFORE /:uuid
 router.get('/permissions', requirePermission('roles.view'), async (req, res) => {
     try {
         const permissions = await db.query(`
@@ -64,7 +64,26 @@ router.get('/permissions', requirePermission('roles.view'), async (req, res) => 
     }
 });
 
-// Get single role
+// Get admin users (users with role_id set) - MUST BE BEFORE /:uuid
+router.get('/admin-users/list', requirePermission('users.view'), async (req, res) => {
+    try {
+        const users = await db.query(`
+      SELECT u.id, u.uuid, u.email, u.first_name, u.last_name, u.status, u.created_at, u.role_id,
+             r.name as role_name, r.slug as role_slug, r.uuid as role_uuid
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      WHERE u.role = 'admin' OR u.role_id IS NOT NULL
+      ORDER BY u.created_at DESC
+    `);
+
+        res.json({ users });
+    } catch (error) {
+        console.error('Get admin users error:', error);
+        res.status(500).json({ error: 'Failed to fetch admin users' });
+    }
+});
+
+// Get single role - WILDCARD ROUTES MUST BE AFTER SPECIFIC ROUTES
 router.get('/:uuid', requirePermission('roles.view'), async (req, res) => {
     try {
         const roles = await db.query(`
@@ -302,25 +321,6 @@ router.delete('/:uuid', requireSuperAdmin(), async (req, res) => {
     } catch (error) {
         console.error('Delete role error:', error);
         res.status(500).json({ error: 'Failed to delete role' });
-    }
-});
-
-// Get admin users (users with role_id set)
-router.get('/admin-users/list', requirePermission('users.view'), async (req, res) => {
-    try {
-        const users = await db.query(`
-      SELECT u.id, u.uuid, u.email, u.first_name, u.last_name, u.status, u.created_at,
-             r.name as role_name, r.slug as role_slug, r.uuid as role_uuid
-      FROM users u
-      LEFT JOIN roles r ON u.role_id = r.id
-      WHERE u.role = 'admin' OR u.role_id IS NOT NULL
-      ORDER BY u.created_at DESC
-    `);
-
-        res.json({ users });
-    } catch (error) {
-        console.error('Get admin users error:', error);
-        res.status(500).json({ error: 'Failed to fetch admin users' });
     }
 });
 
