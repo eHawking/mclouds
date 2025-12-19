@@ -63,34 +63,55 @@ router.post('/assign', authenticate, requireRole('admin'), async (req, res) => {
 // Get all roles
 router.get('/', authenticate, requireRole('admin'), async (req, res) => {
     try {
-        // Simple query first
-        const roles = await db.query(`SELECT * FROM roles ORDER BY is_system DESC, name ASC`);
+        // Simple query - handle case where is_system might not exist
+        let roles = [];
+        try {
+            roles = await db.query(`SELECT * FROM roles ORDER BY is_system DESC, name ASC`);
+        } catch (orderError) {
+            // If is_system column doesn't exist, try without ordering
+            console.log('Trying simple query without is_system ordering');
+            roles = await db.query(`SELECT * FROM roles ORDER BY name ASC`);
+        }
 
-        // Get user counts separately to avoid subquery issues
-        const parsedRoles = await Promise.all(roles.map(async (role) => {
-            let userCount = 0;
+        // Parse each role safely
+        const parsedRoles = roles.map(role => {
+            let permissions = {};
             try {
-                const countResult = await db.query('SELECT COUNT(*) as cnt FROM users WHERE role_id = ?', [role.id]);
-                userCount = countResult[0]?.cnt || 0;
+                if (role.permissions) {
+                    permissions = typeof role.permissions === 'string'
+                        ? JSON.parse(role.permissions)
+                        : role.permissions;
+                }
             } catch (e) {
-                // Ignore count errors
-            }
-
-            let permissions = null;
-            try {
-                permissions = role.permissions
-                    ? (typeof role.permissions === 'string' ? JSON.parse(role.permissions) : role.permissions)
-                    : {};
-            } catch (e) {
+                console.log('Error parsing permissions for role', role.id, e.message);
                 permissions = {};
             }
 
             return {
-                ...role,
+                id: role.id,
+                name: role.name || 'Unnamed Role',
+                description: role.description || '',
                 permissions,
-                user_count: userCount
+                is_system: role.is_system || false,
+                user_count: 0, // Will update below
+                created_at: role.created_at,
+                updated_at: role.updated_at
             };
-        }));
+        });
+
+        // Get user counts in a single query
+        try {
+            const counts = await db.query(`
+        SELECT role_id, COUNT(*) as cnt FROM users 
+        WHERE role_id IS NOT NULL 
+        GROUP BY role_id
+      `);
+            const countMap = {};
+            counts.forEach(c => { countMap[c.role_id] = Number(c.cnt); });
+            parsedRoles.forEach(r => { r.user_count = countMap[r.id] || 0; });
+        } catch (countError) {
+            console.log('Error getting user counts:', countError.message);
+        }
 
         res.json({ roles: parsedRoles });
     } catch (error) {
