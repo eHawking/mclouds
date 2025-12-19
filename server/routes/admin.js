@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { body, validationResult } = require('express-validator');
 const slugify = require('slugify');
 const db = require('../database/connection');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { authenticate, requireRole, requireAnyPermission } = require('../middleware/auth');
 const emailService = require('../services/emailService');
 const notificationService = require('../services/notificationService');
 
@@ -67,12 +67,12 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
-// Users management
-router.get('/users', async (req, res) => {
+// Users management - requires users.view permission
+router.get('/users', requireAnyPermission(['users.view', 'users.edit', 'users.delete']), async (req, res) => {
   try {
     const { search, status, role, page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
-    
+
     let query = 'SELECT id, uuid, email, first_name, last_name, phone, company, role, status, created_at FROM users WHERE 1=1';
     const params = [];
 
@@ -109,7 +109,7 @@ router.get('/users', async (req, res) => {
   }
 });
 
-router.get('/users/:uuid', async (req, res) => {
+router.get('/users/:uuid', requireAnyPermission(['users.view', 'users.edit']), async (req, res) => {
   try {
     const users = await db.query('SELECT * FROM users WHERE uuid = ?', [req.params.uuid]);
     if (!users.length) {
@@ -143,10 +143,10 @@ router.get('/users/:uuid', async (req, res) => {
   }
 });
 
-router.put('/users/:uuid', async (req, res) => {
+router.put('/users/:uuid', requireAnyPermission(['users.edit']), async (req, res) => {
   try {
     const { first_name, last_name, email, phone, company, address, role, status } = req.body;
-    
+
     await db.query(`
       UPDATE users SET first_name = ?, last_name = ?, email = ?, phone = ?, company = ?, address = ?, role = ?, status = ?
       WHERE uuid = ?
@@ -167,30 +167,30 @@ router.get('/users/:uuid/resources', async (req, res) => {
     if (!user?.length) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
+
     const services = await db.query(
       'SELECT * FROM services WHERE user_id = ? AND status = ?',
       [user[0].id, 'active']
     );
-    
+
     if (!services?.length) {
       return res.json({ resources: null, message: 'No active services' });
     }
-    
+
     // Get Plesk settings
     const pleskSettings = await db.query(`
       SELECT setting_key, setting_value FROM settings 
       WHERE setting_key IN ('plesk_enabled', 'plesk_hostname', 'plesk_port', 'plesk_api_key', 'plesk_username', 'plesk_password', 'plesk_auth_method')
     `);
-    
+
     const config = {};
     pleskSettings?.forEach(row => {
       config[row.setting_key.replace('plesk_', '')] = row.setting_value;
     });
-    
+
     // Aggregate resources from service names (parse specs)
     let totalRam = 0, totalStorage = 0, totalBandwidth = 0;
-    
+
     services.forEach(service => {
       const name = service.name || '';
       const ramMatch = name.match(/(\d+)\s*GB\s*RAM/i);
@@ -198,7 +198,7 @@ router.get('/users/:uuid/resources', async (req, res) => {
       const storageMatch = name.match(/(\d+)\s*GB\s*(SSD|NVMe|HDD)/i);
       if (storageMatch) totalStorage += parseInt(storageMatch[1]);
     });
-    
+
     // Simulated usage stats (would come from Plesk in production)
     const resources = {
       cpu_usage: Math.floor(Math.random() * 30 + 10),
@@ -209,7 +209,7 @@ router.get('/users/:uuid/resources', async (req, res) => {
       bandwidth_used: Math.floor(Math.random() * 200 + 50),
       bandwidth_total: services.length * 1000
     };
-    
+
     res.json({ resources, serviceCount: services.length });
   } catch (error) {
     console.error('Get user resources error:', error);
@@ -245,12 +245,12 @@ router.post('/users/:uuid/login-as', async (req, res) => {
   }
 });
 
-// Invoices management
-router.get('/invoices', async (req, res) => {
+// Invoices management - requires invoices.view permission
+router.get('/invoices', requireAnyPermission(['invoices.view', 'invoices.edit', 'invoices.delete']), async (req, res) => {
   try {
     const { status, page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
-    
+
     let query = `
       SELECT i.*, u.email, u.first_name, u.last_name, p.title as proposal_title
       FROM invoices i
@@ -295,7 +295,7 @@ router.get('/invoices/:uuid', async (req, res) => {
       LEFT JOIN proposals p ON i.proposal_id = p.id
       WHERE i.uuid = ?
     `, [req.params.uuid]);
-    
+
     if (!invoices.length) {
       return res.status(404).json({ error: 'Invoice not found' });
     }
@@ -316,11 +316,11 @@ router.get('/invoices/:uuid', async (req, res) => {
   }
 });
 
-router.put('/invoices/:uuid/status', async (req, res) => {
+router.put('/invoices/:uuid/status', requireAnyPermission(['invoices.edit']), async (req, res) => {
   try {
     const { status } = req.body;
     const validStatuses = ['draft', 'unpaid', 'paid', 'cancelled', 'refunded'];
-    
+
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
@@ -352,8 +352,8 @@ router.get('/products', async (req, res) => {
       products: products.map(p => {
         let features = [];
         let specifications = {};
-        try { features = p.features ? JSON.parse(p.features) : []; } catch(e) { features = []; }
-        try { specifications = p.specifications ? JSON.parse(p.specifications) : {}; } catch(e) { specifications = {}; }
+        try { features = p.features ? JSON.parse(p.features) : []; } catch (e) { features = []; }
+        try { specifications = p.specifications ? JSON.parse(p.specifications) : {}; } catch (e) { specifications = {}; }
         return { ...p, features, specifications };
       })
     });
@@ -392,7 +392,7 @@ router.post('/products', [
 router.put('/products/:uuid', async (req, res) => {
   try {
     const { name, category_id, description, features, specifications, price_monthly, price_annually, setup_fee, is_featured, is_active, sort_order } = req.body;
-    
+
     await db.query(`
       UPDATE products SET name = ?, category_id = ?, description = ?, features = ?, specifications = ?, price_monthly = ?, price_annually = ?, setup_fee = ?, is_featured = ?, is_active = ?, sort_order = ?
       WHERE uuid = ?
@@ -443,12 +443,12 @@ router.post('/categories', async (req, res) => {
   }
 });
 
-// Orders management
-router.get('/orders', async (req, res) => {
+// Orders management - requires orders.view permission
+router.get('/orders', requireAnyPermission(['orders.view', 'orders.edit', 'orders.delete']), async (req, res) => {
   try {
     const { status, page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
-    
+
     let query = `
       SELECT o.*, u.email, u.first_name, u.last_name
       FROM orders o
@@ -482,10 +482,10 @@ router.get('/orders', async (req, res) => {
   }
 });
 
-router.put('/orders/:uuid/status', async (req, res) => {
+router.put('/orders/:uuid/status', requireAnyPermission(['orders.edit']), async (req, res) => {
   try {
     const { status, payment_status } = req.body;
-    
+
     // Get order and user info before update
     const orders = await db.query(`
       SELECT o.*, u.email, u.first_name, u.last_name
@@ -493,15 +493,15 @@ router.put('/orders/:uuid/status', async (req, res) => {
       JOIN users u ON o.user_id = u.id
       WHERE o.uuid = ?
     `, [req.params.uuid]);
-    
+
     if (!orders.length) {
       return res.status(404).json({ error: 'Order not found' });
     }
-    
+
     const order = orders[0];
     const oldPaymentStatus = order.payment_status;
     const oldStatus = order.status;
-    
+
     await db.query(`
       UPDATE orders SET status = COALESCE(?, status), payment_status = COALESCE(?, payment_status)
       WHERE uuid = ?
@@ -510,28 +510,28 @@ router.put('/orders/:uuid/status', async (req, res) => {
     // Send email notifications based on status change
     const user = { email: order.email, first_name: order.first_name, last_name: order.last_name, id: order.user_id };
     const orderData = { uuid: order.uuid, id: order.id, total: order.total };
-    
+
     // Payment confirmed
     if (payment_status === 'paid' && oldPaymentStatus !== 'paid') {
-      emailService.sendOrderConfirmed(orderData, user).catch(err => 
+      emailService.sendOrderConfirmed(orderData, user).catch(err =>
         console.error('Failed to send order confirmed email:', err)
       );
     }
-    
+
     // Order completed/active - CREATE SERVICES for the user
     const newStatus = status || order.status;
     const newPaymentStatus = payment_status || order.payment_status;
-    
+
     if (newStatus === 'active' && newPaymentStatus === 'paid') {
       // Check if services already created for this order
       const existingServices = await db.query('SELECT id FROM services WHERE order_item_id IN (SELECT id FROM order_items WHERE order_id = ?)', [order.id]);
       const existingFiltered = Array.isArray(existingServices) ? existingServices.filter(s => s.id) : [];
-      
+
       if (existingFiltered.length === 0) {
         // Get order items and create services
         const orderItems = await db.query('SELECT * FROM order_items WHERE order_id = ?', [order.id]);
         const itemsFiltered = Array.isArray(orderItems) ? orderItems.filter(i => i.id) : [];
-        
+
         for (const item of itemsFiltered) {
           const serviceUuid = require('uuid').v4();
           // Map product_type to valid service_type enum values
@@ -540,7 +540,7 @@ router.put('/orders/:uuid/status', async (req, res) => {
           if (!validServiceTypes.includes(serviceType)) {
             serviceType = 'hosting'; // Default to hosting for unknown types
           }
-          
+
           // Calculate next due date based on billing cycle
           const now = new Date();
           let nextDueDate = new Date(now);
@@ -559,7 +559,7 @@ router.put('/orders/:uuid/status', async (req, res) => {
           } else {
             nextDueDate.setMonth(nextDueDate.getMonth() + 1); // Default monthly
           }
-          
+
           await db.query(`
             INSERT INTO services (uuid, user_id, order_item_id, product_id, service_type, name, domain_name, status, billing_cycle, amount, next_due_date, registration_date)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
@@ -579,18 +579,18 @@ router.put('/orders/:uuid/status', async (req, res) => {
         }
         console.log(`Created ${itemsFiltered.length} services for order ${order.order_number}`);
       }
-      
+
       // Send completion email
       if (oldStatus !== 'active') {
-        emailService.sendOrderCompleted(orderData, user).catch(err => 
+        emailService.sendOrderCompleted(orderData, user).catch(err =>
           console.error('Failed to send order completed email:', err)
         );
       }
     }
-    
+
     // Order cancelled
     if (status === 'cancelled' && oldStatus !== 'cancelled') {
-      emailService.sendOrderCancelled(orderData, user).catch(err => 
+      emailService.sendOrderCancelled(orderData, user).catch(err =>
         console.error('Failed to send order cancelled email:', err)
       );
     }
@@ -613,19 +613,19 @@ router.post('/orders/sync-services', async (req, res) => {
       WHERE o.status = 'active' AND o.payment_status = 'paid'
     `);
     const ordersFiltered = Array.isArray(orders) ? orders.filter(o => o.id) : [];
-    
+
     let servicesCreated = 0;
-    
+
     for (const order of ordersFiltered) {
       // Check if services already exist for this order
       const existingServices = await db.query('SELECT id FROM services WHERE order_item_id IN (SELECT id FROM order_items WHERE order_id = ?)', [order.id]);
       const existingFiltered = Array.isArray(existingServices) ? existingServices.filter(s => s.id) : [];
-      
+
       if (existingFiltered.length === 0) {
         // Get order items
         const orderItems = await db.query('SELECT * FROM order_items WHERE order_id = ?', [order.id]);
         const itemsFiltered = Array.isArray(orderItems) ? orderItems.filter(i => i.id) : [];
-        
+
         for (const item of itemsFiltered) {
           const serviceUuid = require('uuid').v4();
           const validServiceTypes = ['hosting', 'domain', 'ssl', 'email', 'backup', 'vps', 'dedicated'];
@@ -633,7 +633,7 @@ router.post('/orders/sync-services', async (req, res) => {
           if (!validServiceTypes.includes(serviceType)) {
             serviceType = 'hosting';
           }
-          
+
           const now = new Date();
           let nextDueDate = new Date(now);
           if (item.billing_cycle === 'monthly') {
@@ -645,7 +645,7 @@ router.post('/orders/sync-services', async (req, res) => {
           } else {
             nextDueDate.setMonth(nextDueDate.getMonth() + 1);
           }
-          
+
           await db.query(`
             INSERT INTO services (uuid, user_id, order_item_id, product_id, service_type, name, domain_name, status, billing_cycle, amount, next_due_date, registration_date)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
@@ -666,7 +666,7 @@ router.post('/orders/sync-services', async (req, res) => {
         }
       }
     }
-    
+
     res.json({ message: `Synced ${servicesCreated} services for ${ordersFiltered.length} orders` });
   } catch (error) {
     console.error('Sync services error:', error);
@@ -674,12 +674,12 @@ router.post('/orders/sync-services', async (req, res) => {
   }
 });
 
-// Tickets management
-router.get('/tickets', async (req, res) => {
+// Tickets management - requires tickets.view permission
+router.get('/tickets', requireAnyPermission(['tickets.view', 'tickets.reply', 'tickets.close']), async (req, res) => {
   try {
     const { status, department, page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
-    
+
     let query = `
       SELECT t.*, u.email, u.first_name, u.last_name
       FROM tickets t
@@ -722,7 +722,7 @@ router.post('/tickets/:uuid/reply', [
 ], async (req, res) => {
   try {
     const { message } = req.body;
-    
+
     const tickets = await db.query(`
       SELECT t.*, u.email, u.first_name, u.last_name
       FROM tickets t
@@ -732,7 +732,7 @@ router.post('/tickets/:uuid/reply', [
     if (!tickets.length) {
       return res.status(404).json({ error: 'Ticket not found' });
     }
-    
+
     const ticket = tickets[0];
 
     await db.query(`
@@ -749,8 +749,8 @@ router.post('/tickets/:uuid/reply', [
     const user = { email: ticket.email, first_name: ticket.first_name, last_name: ticket.last_name };
     const ticketData = { id: ticket.id, subject: ticket.subject };
     const reply = { message };
-    
-    emailService.sendTicketReplied(ticketData, user, reply, 'Support Team').catch(err => 
+
+    emailService.sendTicketReplied(ticketData, user, reply, 'Support Team').catch(err =>
       console.error('Failed to send ticket reply email:', err)
     );
 
@@ -775,7 +775,7 @@ router.get('/tlds', async (req, res) => {
 router.post('/tlds', async (req, res) => {
   try {
     const { tld, price_register, price_renew, price_transfer, is_popular, is_active } = req.body;
-    
+
     await db.query(`
       INSERT INTO domain_tlds (tld, price_register, price_renew, price_transfer, is_popular, is_active)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -791,7 +791,7 @@ router.post('/tlds', async (req, res) => {
 router.put('/tlds/:id', async (req, res) => {
   try {
     const { price_register, price_renew, price_transfer, is_popular, is_active, promo_price } = req.body;
-    
+
     await db.query(`
       UPDATE domain_tlds SET price_register = ?, price_renew = ?, price_transfer = ?, is_popular = ?, is_active = ?, promo_price = ?
       WHERE id = ?
@@ -818,7 +818,7 @@ router.get('/coupons', async (req, res) => {
 router.post('/coupons', async (req, res) => {
   try {
     const { code, type, value, min_order_amount, max_discount, usage_limit, expires_at, is_active } = req.body;
-    
+
     await db.query(`
       INSERT INTO coupons (code, type, value, min_order_amount, max_discount, usage_limit, expires_at, is_active)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -845,7 +845,7 @@ router.get('/datacenters', async (req, res) => {
 router.post('/datacenters', async (req, res) => {
   try {
     const { name, location, country, country_code, latitude, longitude, description, features, is_active } = req.body;
-    
+
     await db.query(`
       INSERT INTO datacenters (name, location, country, country_code, latitude, longitude, description, features, is_active)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -872,7 +872,7 @@ router.get('/pages', async (req, res) => {
 router.post('/pages', async (req, res) => {
   try {
     const { title, slug, content, meta_title, meta_description, is_published } = req.body;
-    
+
     await db.query(`
       INSERT INTO pages (slug, title, content, meta_title, meta_description, is_published)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -888,7 +888,7 @@ router.post('/pages', async (req, res) => {
 router.put('/pages/:id', async (req, res) => {
   try {
     const { title, content, meta_title, meta_description, is_published } = req.body;
-    
+
     await db.query(`
       UPDATE pages SET title = ?, content = ?, meta_title = ?, meta_description = ?, is_published = ?
       WHERE id = ?
@@ -933,12 +933,12 @@ router.get('/email-logs', async (req, res) => {
       SELECT COUNT(*) as count FROM information_schema.tables 
       WHERE table_schema = DATABASE() AND table_name = 'email_logs'
     `);
-    
+
     if (!tableCheck[0]?.count) {
-      return res.json({ 
-        logs: [], 
-        total: 0, 
-        stats: { total: 0, sent: 0, failed: 0, pending: 0 } 
+      return res.json({
+        logs: [],
+        total: 0,
+        stats: { total: 0, sent: 0, failed: 0, pending: 0 }
       });
     }
 
@@ -993,10 +993,10 @@ router.get('/email-logs', async (req, res) => {
     });
   } catch (error) {
     console.error('Get email logs error:', error);
-    res.json({ 
-      logs: [], 
-      total: 0, 
-      stats: { total: 0, sent: 0, failed: 0, pending: 0 } 
+    res.json({
+      logs: [],
+      total: 0,
+      stats: { total: 0, sent: 0, failed: 0, pending: 0 }
     });
   }
 });
@@ -1027,7 +1027,7 @@ router.get('/services', async (req, res) => {
   try {
     const { status, user_id, page = 1, limit = 50 } = req.query;
     const offset = (page - 1) * limit;
-    
+
     let query = `
       SELECT s.*, u.first_name, u.last_name, u.email as user_email
       FROM services s
@@ -1035,7 +1035,7 @@ router.get('/services', async (req, res) => {
       WHERE 1=1
     `;
     const params = [];
-    
+
     if (status) {
       query += ' AND s.status = ?';
       params.push(status);
@@ -1044,10 +1044,10 @@ router.get('/services', async (req, res) => {
       query += ' AND s.user_id = ?';
       params.push(user_id);
     }
-    
+
     query += ' ORDER BY s.created_at DESC LIMIT ? OFFSET ?';
     params.push(parseInt(limit), parseInt(offset));
-    
+
     const services = await db.query(query, params);
     res.json({ services: services || [] });
   } catch (error) {
@@ -1065,13 +1065,13 @@ router.get('/services/:uuid', async (req, res) => {
       LEFT JOIN users u ON s.user_id = u.id
       WHERE s.uuid = ?
     `, [req.params.uuid]);
-    
+
     if (!services?.length) {
       return res.status(404).json({ error: 'Service not found' });
     }
-    
+
     const service = services[0];
-    res.json({ 
+    res.json({
       service,
       user: {
         uuid: service.user_uuid,
@@ -1090,7 +1090,7 @@ router.get('/services/:uuid', async (req, res) => {
 router.put('/services/:uuid', async (req, res) => {
   try {
     const { status, next_due_date, hostname, ip_address, username, password } = req.body;
-    
+
     await db.query(`
       UPDATE services SET
         status = COALESCE(?, status),
@@ -1102,7 +1102,7 @@ router.put('/services/:uuid', async (req, res) => {
         updated_at = NOW()
       WHERE uuid = ?
     `, [status, next_due_date || null, hostname, ip_address, username, password, req.params.uuid]);
-    
+
     res.json({ success: true });
   } catch (error) {
     console.error('Update service error:', error);
@@ -1118,32 +1118,32 @@ router.get('/services/:uuid/plesk-stats', async (req, res) => {
     if (!services?.length) {
       return res.status(404).json({ error: 'Service not found' });
     }
-    
+
     const service = services[0];
-    
+
     // Get Plesk settings
     const pleskSettings = await db.query(`
       SELECT setting_key, setting_value FROM settings 
       WHERE setting_key IN ('plesk_enabled', 'plesk_hostname', 'plesk_port', 'plesk_api_key', 'plesk_username', 'plesk_password', 'plesk_auth_method')
     `);
-    
+
     const config = {};
     pleskSettings?.forEach(row => {
       config[row.setting_key.replace('plesk_', '')] = row.setting_value;
     });
-    
+
     if (config.enabled !== 'true' || !config.hostname) {
       return res.json({ stats: null, message: 'Plesk not configured' });
     }
-    
+
     // Try to get real stats from Plesk API
     try {
       const https = require('https');
       const fetch = require('node-fetch');
-      
+
       const agent = new https.Agent({ rejectUnauthorized: false });
       const pleskUrl = `https://${config.hostname}:${config.port || 8443}`;
-      
+
       // Set up auth headers
       let headers = { 'Content-Type': 'application/json' };
       if (config.auth_method === 'api_key' && config.api_key) {
@@ -1152,7 +1152,7 @@ router.get('/services/:uuid/plesk-stats', async (req, res) => {
         const auth = Buffer.from(`${config.username}:${config.password}`).toString('base64');
         headers['Authorization'] = `Basic ${auth}`;
       }
-      
+
       // Get server stats
       const statsResponse = await fetch(`${pleskUrl}/api/v2/server/statistics`, {
         method: 'GET',
@@ -1160,10 +1160,10 @@ router.get('/services/:uuid/plesk-stats', async (req, res) => {
         agent,
         timeout: 10000
       });
-      
+
       if (statsResponse.ok) {
         const data = await statsResponse.json();
-        
+
         return res.json({
           stats: {
             cpu_usage: data.cpu?.usage || Math.floor(Math.random() * 30 + 10),
@@ -1179,7 +1179,7 @@ router.get('/services/:uuid/plesk-stats', async (req, res) => {
     } catch (pleskError) {
       console.log('Plesk API error, using simulated stats:', pleskError.message);
     }
-    
+
     // Return simulated stats if Plesk API fails
     res.json({
       stats: {
@@ -1206,11 +1206,11 @@ router.get('/notifications', async (req, res) => {
   try {
     const { limit = 50, unread_only = false } = req.query;
     const notifications = await notificationService.getAdminNotifications(
-      parseInt(limit), 
+      parseInt(limit),
       unread_only === 'true'
     );
     const unreadCount = await notificationService.getAdminUnreadCount();
-    
+
     res.json({ notifications, unreadCount });
   } catch (error) {
     console.error('Get notifications error:', error);
