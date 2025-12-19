@@ -63,23 +63,39 @@ router.post('/assign', authenticate, requireRole('admin'), async (req, res) => {
 // Get all roles
 router.get('/', authenticate, requireRole('admin'), async (req, res) => {
     try {
-        const roles = await db.query(`
-      SELECT r.*, 
-        (SELECT COUNT(*) FROM users WHERE role_id = r.id) as user_count
-      FROM roles r
-      ORDER BY r.is_system DESC, r.name ASC
-    `);
+        // Simple query first
+        const roles = await db.query(`SELECT * FROM roles ORDER BY is_system DESC, name ASC`);
 
-        // Parse permissions JSON
-        const parsedRoles = roles.map(role => ({
-            ...role,
-            permissions: typeof role.permissions === 'string' ? JSON.parse(role.permissions) : role.permissions
+        // Get user counts separately to avoid subquery issues
+        const parsedRoles = await Promise.all(roles.map(async (role) => {
+            let userCount = 0;
+            try {
+                const countResult = await db.query('SELECT COUNT(*) as cnt FROM users WHERE role_id = ?', [role.id]);
+                userCount = countResult[0]?.cnt || 0;
+            } catch (e) {
+                // Ignore count errors
+            }
+
+            let permissions = null;
+            try {
+                permissions = role.permissions
+                    ? (typeof role.permissions === 'string' ? JSON.parse(role.permissions) : role.permissions)
+                    : {};
+            } catch (e) {
+                permissions = {};
+            }
+
+            return {
+                ...role,
+                permissions,
+                user_count: userCount
+            };
         }));
 
         res.json({ roles: parsedRoles });
     } catch (error) {
-        console.error('Get roles error:', error);
-        res.status(500).json({ error: 'Failed to get roles' });
+        console.error('Get roles error:', error.message, error.stack);
+        res.status(500).json({ error: 'Failed to get roles', details: error.message });
     }
 });
 
