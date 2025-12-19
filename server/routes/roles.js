@@ -99,6 +99,28 @@ router.get('/', authenticate, requireRole('admin'), async (req, res) => {
     }
 });
 
+// Get users by role ID - MUST be before /:id to avoid route conflict
+router.get('/:id/users', authenticate, requireRole('admin'), async (req, res) => {
+    try {
+        const roles = await db.query('SELECT id FROM roles WHERE id = ?', [req.params.id]);
+        if (!roles.length) {
+            return res.status(404).json({ error: 'Role not found' });
+        }
+
+        const users = await db.query(`
+      SELECT uuid, email, first_name, last_name, avatar, status, created_at
+      FROM users 
+      WHERE role_id = ?
+      ORDER BY first_name, last_name
+    `, [roles[0].id]);
+
+        res.json({ users });
+    } catch (error) {
+        console.error('Get role users error:', error);
+        res.status(500).json({ error: 'Failed to get users' });
+    }
+});
+
 // Get single role by ID
 router.get('/:id', authenticate, requireRole('admin'), async (req, res) => {
     try {
@@ -209,28 +231,6 @@ router.delete('/:id', authenticate, requireRole('admin'), async (req, res) => {
     } catch (error) {
         console.error('Delete role error:', error);
         res.status(500).json({ error: 'Failed to delete role' });
-    }
-});
-
-// Get users by role ID
-router.get('/:id/users', authenticate, requireRole('admin'), async (req, res) => {
-    try {
-        const roles = await db.query('SELECT id FROM roles WHERE id = ?', [req.params.id]);
-        if (!roles.length) {
-            return res.status(404).json({ error: 'Role not found' });
-        }
-
-        const users = await db.query(`
-      SELECT uuid, email, first_name, last_name, avatar, status, created_at
-      FROM users 
-      WHERE role_id = ?
-      ORDER BY first_name, last_name
-    `, [roles[0].id]);
-
-        res.json({ users });
-    } catch (error) {
-        console.error('Get role users error:', error);
-        res.status(500).json({ error: 'Failed to get users' });
     }
 });
 
