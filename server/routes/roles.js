@@ -1,11 +1,10 @@
 const express = require('express');
-const { v4: uuidv4 } = require('uuid');
 const db = require('../database/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Get all permissions (meta info) - MUST be before /:uuid to avoid route conflict
+// Get all permissions (meta info) - MUST be before /:id to avoid route conflict
 router.get('/meta/permissions', authenticate, requireRole('admin'), async (req, res) => {
     const permissions = {
         users: { label: 'Users', actions: ['view', 'create', 'edit', 'delete'] },
@@ -21,6 +20,44 @@ router.get('/meta/permissions', authenticate, requireRole('admin'), async (req, 
         server: { label: 'Server Management', actions: ['view', 'manage'] }
     };
     res.json({ permissions });
+});
+
+// Assign role to user - MUST be before /:id
+router.post('/assign', authenticate, requireRole('admin'), async (req, res) => {
+    try {
+        const { user_uuid, role_id } = req.body;
+
+        if (!user_uuid) {
+            return res.status(400).json({ error: 'User UUID is required' });
+        }
+
+        // Get user
+        const users = await db.query('SELECT id, role FROM users WHERE uuid = ?', [user_uuid]);
+        if (!users.length) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Only allow assigning roles to admin users
+        if (users[0].role !== 'admin') {
+            return res.status(400).json({ error: 'Can only assign roles to admin users' });
+        }
+
+        let roleIdValue = null;
+        if (role_id) {
+            const roles = await db.query('SELECT id FROM roles WHERE id = ?', [role_id]);
+            if (!roles.length) {
+                return res.status(404).json({ error: 'Role not found' });
+            }
+            roleIdValue = roles[0].id;
+        }
+
+        await db.query('UPDATE users SET role_id = ? WHERE uuid = ?', [roleIdValue, user_uuid]);
+
+        res.json({ message: 'Role assigned successfully' });
+    } catch (error) {
+        console.error('Assign role error:', error);
+        res.status(500).json({ error: 'Failed to assign role' });
+    }
 });
 
 // Get all roles
@@ -46,10 +83,10 @@ router.get('/', authenticate, requireRole('admin'), async (req, res) => {
     }
 });
 
-// Get single role
-router.get('/:uuid', authenticate, requireRole('admin'), async (req, res) => {
+// Get single role by ID
+router.get('/:id', authenticate, requireRole('admin'), async (req, res) => {
     try {
-        const roles = await db.query('SELECT * FROM roles WHERE uuid = ?', [req.params.uuid]);
+        const roles = await db.query('SELECT * FROM roles WHERE id = ?', [req.params.id]);
         if (!roles.length) {
             return res.status(404).json({ error: 'Role not found' });
         }
@@ -67,22 +104,6 @@ router.get('/:uuid', authenticate, requireRole('admin'), async (req, res) => {
 // Create role
 router.post('/', authenticate, requireRole('admin'), async (req, res) => {
     try {
-        // Check for manage_roles permission
-        if (!req.user.permissions?.settings?.includes('manage_roles')) {
-            // Allow if user is Super Admin or no role system set up yet
-            const hasRoles = await db.query('SELECT COUNT(*) as count FROM roles');
-            if (hasRoles[0]?.count > 0 && req.user.role_id) {
-                const userRole = await db.query('SELECT permissions FROM roles WHERE id = ?', [req.user.role_id]);
-                if (userRole.length) {
-                    const perms = typeof userRole[0].permissions === 'string' ?
-                        JSON.parse(userRole[0].permissions) : userRole[0].permissions;
-                    if (!perms?.settings?.includes('manage_roles')) {
-                        return res.status(403).json({ error: 'Permission denied' });
-                    }
-                }
-            }
-        }
-
         const { name, description, permissions } = req.body;
 
         if (!name) {
@@ -95,15 +116,14 @@ router.post('/', authenticate, requireRole('admin'), async (req, res) => {
             return res.status(400).json({ error: 'Role name already exists' });
         }
 
-        const uuid = uuidv4();
-        await db.query(`
-      INSERT INTO roles (uuid, name, description, permissions, is_system)
-      VALUES (?, ?, ?, ?, FALSE)
-    `, [uuid, name, description || null, JSON.stringify(permissions || {})]);
+        const result = await db.query(`
+      INSERT INTO roles (name, description, permissions, is_system)
+      VALUES (?, ?, ?, FALSE)
+    `, [name, description || null, JSON.stringify(permissions || {})]);
 
         res.status(201).json({
             message: 'Role created successfully',
-            uuid
+            id: result.insertId
         });
     } catch (error) {
         console.error('Create role error:', error);
@@ -111,13 +131,13 @@ router.post('/', authenticate, requireRole('admin'), async (req, res) => {
     }
 });
 
-// Update role
-router.put('/:uuid', authenticate, requireRole('admin'), async (req, res) => {
+// Update role by ID
+router.put('/:id', authenticate, requireRole('admin'), async (req, res) => {
     try {
         const { name, description, permissions } = req.body;
 
         // Check if role exists
-        const roles = await db.query('SELECT * FROM roles WHERE uuid = ?', [req.params.uuid]);
+        const roles = await db.query('SELECT * FROM roles WHERE id = ?', [req.params.id]);
         if (!roles.length) {
             return res.status(404).json({ error: 'Role not found' });
         }
@@ -142,8 +162,8 @@ router.put('/:uuid', authenticate, requireRole('admin'), async (req, res) => {
         name = COALESCE(?, name),
         description = COALESCE(?, description),
         permissions = COALESCE(?, permissions)
-      WHERE uuid = ?
-    `, [name, description, permissions ? JSON.stringify(permissions) : null, req.params.uuid]);
+      WHERE id = ?
+    `, [name, description, permissions ? JSON.stringify(permissions) : null, req.params.id]);
 
         res.json({ message: 'Role updated successfully' });
     } catch (error) {
@@ -152,10 +172,10 @@ router.put('/:uuid', authenticate, requireRole('admin'), async (req, res) => {
     }
 });
 
-// Delete role
-router.delete('/:uuid', authenticate, requireRole('admin'), async (req, res) => {
+// Delete role by ID
+router.delete('/:id', authenticate, requireRole('admin'), async (req, res) => {
     try {
-        const roles = await db.query('SELECT * FROM roles WHERE uuid = ?', [req.params.uuid]);
+        const roles = await db.query('SELECT * FROM roles WHERE id = ?', [req.params.id]);
         if (!roles.length) {
             return res.status(404).json({ error: 'Role not found' });
         }
@@ -167,7 +187,7 @@ router.delete('/:uuid', authenticate, requireRole('admin'), async (req, res) => 
         // Set users with this role to null
         await db.query('UPDATE users SET role_id = NULL WHERE role_id = ?', [roles[0].id]);
 
-        await db.query('DELETE FROM roles WHERE uuid = ?', [req.params.uuid]);
+        await db.query('DELETE FROM roles WHERE id = ?', [req.params.id]);
 
         res.json({ message: 'Role deleted successfully' });
     } catch (error) {
@@ -176,10 +196,10 @@ router.delete('/:uuid', authenticate, requireRole('admin'), async (req, res) => 
     }
 });
 
-// Get users by role
-router.get('/:uuid/users', authenticate, requireRole('admin'), async (req, res) => {
+// Get users by role ID
+router.get('/:id/users', authenticate, requireRole('admin'), async (req, res) => {
     try {
-        const roles = await db.query('SELECT id FROM roles WHERE uuid = ?', [req.params.uuid]);
+        const roles = await db.query('SELECT id FROM roles WHERE id = ?', [req.params.id]);
         if (!roles.length) {
             return res.status(404).json({ error: 'Role not found' });
         }
@@ -198,43 +218,4 @@ router.get('/:uuid/users', authenticate, requireRole('admin'), async (req, res) 
     }
 });
 
-// Assign role to user
-router.post('/assign', authenticate, requireRole('admin'), async (req, res) => {
-    try {
-        const { user_uuid, role_uuid } = req.body;
-
-        if (!user_uuid) {
-            return res.status(400).json({ error: 'User UUID is required' });
-        }
-
-        // Get user
-        const users = await db.query('SELECT id, role FROM users WHERE uuid = ?', [user_uuid]);
-        if (!users.length) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-
-        // Only allow assigning roles to admin users
-        if (users[0].role !== 'admin') {
-            return res.status(400).json({ error: 'Can only assign roles to admin users' });
-        }
-
-        let roleId = null;
-        if (role_uuid) {
-            const roles = await db.query('SELECT id FROM roles WHERE uuid = ?', [role_uuid]);
-            if (!roles.length) {
-                return res.status(404).json({ error: 'Role not found' });
-            }
-            roleId = roles[0].id;
-        }
-
-        await db.query('UPDATE users SET role_id = ? WHERE uuid = ?', [roleId, user_uuid]);
-
-        res.json({ message: 'Role assigned successfully' });
-    } catch (error) {
-        console.error('Assign role error:', error);
-        res.status(500).json({ error: 'Failed to assign role' });
-    }
-});
-
 module.exports = router;
-

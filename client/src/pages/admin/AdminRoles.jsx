@@ -65,9 +65,9 @@ export default function AdminRoles() {
         }
     }
 
-    const loadRoleUsers = async (uuid) => {
+    const loadRoleUsers = async (id) => {
         try {
-            const res = await rolesAPI.getUsers(uuid)
+            const res = await rolesAPI.getUsers(id)
             setRoleUsers(res.data.users || [])
         } catch (err) {
             console.error('Failed to load role users:', err)
@@ -93,7 +93,7 @@ export default function AdminRoles() {
     const openAssignModal = async (role) => {
         setShowAssignModal(role)
         await loadAdminUsers()
-        await loadRoleUsers(role.uuid)
+        await loadRoleUsers(role.id)
     }
 
     const handleSave = async () => {
@@ -105,7 +105,7 @@ export default function AdminRoles() {
         setSaving(true)
         try {
             if (editingRole) {
-                await rolesAPI.update(editingRole.uuid, form)
+                await rolesAPI.update(editingRole.id, form)
                 toast.success('Role updated successfully')
             } else {
                 await rolesAPI.create(form)
@@ -120,9 +120,9 @@ export default function AdminRoles() {
         }
     }
 
-    const handleDelete = async (uuid) => {
+    const handleDelete = async (id) => {
         try {
-            await rolesAPI.delete(uuid)
+            await rolesAPI.delete(id)
             toast.success('Role deleted successfully')
             setShowDeleteConfirm(null)
             loadRoles()
@@ -133,9 +133,9 @@ export default function AdminRoles() {
 
     const handleAssign = async (userUuid, assign) => {
         try {
-            await rolesAPI.assignRole(userUuid, assign ? showAssignModal.uuid : null)
+            await rolesAPI.assignRole(userUuid, assign ? showAssignModal.id : null)
             toast.success(assign ? 'Role assigned' : 'Role removed')
-            loadRoleUsers(showAssignModal.uuid)
+            loadRoleUsers(showAssignModal.id)
             loadRoles()
         } catch (err) {
             toast.error(err.response?.data?.error || 'Failed to assign role')
@@ -206,13 +206,13 @@ export default function AdminRoles() {
                     <div className="space-y-4">
                         {roles.map((role) => (
                             <motion.div
-                                key={role.uuid}
+                                key={role.id}
                                 layout
                                 className="card overflow-hidden"
                             >
                                 <div
                                     className="p-4 flex items-center justify-between cursor-pointer hover:bg-dark-50 dark:hover:bg-dark-800/50"
-                                    onClick={() => setExpandedRole(expandedRole === role.uuid ? null : role.uuid)}
+                                    onClick={() => setExpandedRole(expandedRole === role.id ? null : role.id)}
                                 >
                                     <div className="flex items-center gap-4">
                                         <div className={clsx(
@@ -268,12 +268,12 @@ export default function AdminRoles() {
                                             )}
                                         </div>
 
-                                        {expandedRole === role.uuid ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                                        {expandedRole === role.id ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                                     </div>
                                 </div>
 
                                 <AnimatePresence>
-                                    {expandedRole === role.uuid && (
+                                    {expandedRole === role.id && (
                                         <motion.div
                                             initial={{ height: 0 }}
                                             animate={{ height: 'auto' }}
@@ -457,7 +457,7 @@ export default function AdminRoles() {
                             </p>
                             <div className="flex justify-end gap-3">
                                 <button onClick={() => setShowDeleteConfirm(null)} className="btn-secondary">Cancel</button>
-                                <button onClick={() => handleDelete(showDeleteConfirm.uuid)} className="btn-danger flex items-center gap-2">
+                                <button onClick={() => handleDelete(showDeleteConfirm.id)} className="btn-danger flex items-center gap-2">
                                     <Trash2 className="w-4 h-4" />
                                     Delete
                                 </button>
