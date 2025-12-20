@@ -32,7 +32,7 @@ async function checkDomainAvailability(fullDomain) {
 router.get('/search', async (req, res) => {
   try {
     const { domain } = req.query;
-    
+
     if (!domain) {
       return res.status(400).json({ error: 'Domain name is required' });
     }
@@ -41,28 +41,28 @@ router.get('/search', async (req, res) => {
     const domainParts = domain.toLowerCase().replace(/[^a-z0-9.-]/g, '').split('.');
     const domainName = domainParts[0];
     const searchedTld = domainParts.length > 1 ? '.' + domainParts.slice(1).join('.') : null;
-    
+
     if (!domainName || domainName.length < 2) {
       return res.status(400).json({ error: 'Invalid domain name' });
     }
 
-    // Get all TLDs
-    const tlds = await db.query('SELECT * FROM domain_tlds WHERE is_active = TRUE ORDER BY is_popular DESC, price_register');
+    // Get only POPULAR TLDs for search results (not all TLDs)
+    const tlds = await db.query('SELECT * FROM domain_tlds WHERE is_active = TRUE AND is_popular = TRUE ORDER BY price_register');
 
     // Check availability for each TLD using real DNS lookups
     const results = await Promise.all(tlds.map(async (tld) => {
       const fullDomain = `${domainName}${tld.tld}`;
-      
+
       // Perform real DNS check
       const availability = await checkDomainAvailability(fullDomain);
-      
+
       return {
         domain: fullDomain,
         tld: tld.tld,
         available: availability.available,
         registered: availability.registered,
-        message: availability.available 
-          ? `${fullDomain} is available!` 
+        message: availability.available
+          ? `${fullDomain} is available!`
           : `${fullDomain} is already registered`,
         price_register: parseFloat(tld.price_register),
         price_renew: parseFloat(tld.price_renew),
@@ -82,8 +82,8 @@ router.get('/search', async (req, res) => {
     });
 
     // Get the primary searched domain result
-    const primaryDomain = searchedTld 
-      ? results.find(r => r.tld === searchedTld) 
+    const primaryDomain = searchedTld
+      ? results.find(r => r.tld === searchedTld)
       : results.find(r => r.tld === '.com') || results[0];
 
     res.json({
@@ -101,7 +101,7 @@ router.get('/search', async (req, res) => {
 router.get('/tlds', async (req, res) => {
   try {
     const { popular_only } = req.query;
-    
+
     let query = 'SELECT * FROM domain_tlds WHERE is_active = TRUE';
     if (popular_only === 'true') {
       query += ' AND is_popular = TRUE';
@@ -129,7 +129,7 @@ router.get('/tlds', async (req, res) => {
 router.get('/check/:domain', async (req, res) => {
   try {
     const { domain } = req.params;
-    
+
     // Perform real DNS check
     const availability = await checkDomainAvailability(domain);
 
@@ -141,8 +141,8 @@ router.get('/check/:domain', async (req, res) => {
       domain,
       available: availability.available,
       registered: availability.registered,
-      message: availability.available 
-        ? `${domain} is available!` 
+      message: availability.available
+        ? `${domain} is available!`
         : `${domain} is already registered`,
       pricing: tlds.length ? {
         register: parseFloat(tlds[0].price_register),
@@ -160,10 +160,10 @@ router.get('/check/:domain', async (req, res) => {
 router.get('/whois/:domain', async (req, res) => {
   try {
     const { domain } = req.params;
-    
+
     // Check if domain is registered
     const availability = await checkDomainAvailability(domain);
-    
+
     if (availability.available) {
       return res.json({
         domain,
@@ -180,19 +180,19 @@ router.get('/whois/:domain', async (req, res) => {
 
     try {
       nameservers = await dns.resolveNs(domain);
-    } catch (e) {}
+    } catch (e) { }
 
     try {
       soa = await dns.resolveSoa(domain);
-    } catch (e) {}
+    } catch (e) { }
 
     try {
       aRecords = await dns.resolve4(domain);
-    } catch (e) {}
+    } catch (e) { }
 
     try {
       mxRecords = await dns.resolveMx(domain);
-    } catch (e) {}
+    } catch (e) { }
 
     // Extract registrar info from nameservers (common patterns)
     let registrar = 'Unknown Registrar';
