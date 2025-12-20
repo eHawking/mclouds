@@ -244,165 +244,168 @@ export default function VPS() {
       {/* Row-by-Row Pricing Table */}
       <section className={clsx("py-16", isDark ? "bg-dark-900" : "bg-white")}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className={clsx(
-              "rounded-3xl overflow-hidden border",
-              isDark ? "bg-dark-800/50 border-dark-700" : "bg-white border-gray-200 shadow-xl"
-            )}
-          >
-            {/* Table Header - Plan Names & Prices */}
-            <div className={clsx(
-              "grid grid-cols-4 border-b",
-              isDark ? "border-dark-700" : "border-gray-200"
-            )}>
+          {/* Mobile-friendly horizontal scroll */}
+          <div className="overflow-x-auto -mx-4 px-4 pb-4 scrollbar-hide">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className={clsx(
+                "rounded-3xl overflow-hidden border min-w-[600px]",
+                isDark ? "bg-dark-800/50 border-dark-700" : "bg-white border-gray-200 shadow-xl"
+              )}
+            >
+              {/* Table Header - Plan Names & Prices */}
               <div className={clsx(
-                "p-6 font-semibold",
-                isDark ? "bg-dark-800 text-white" : "bg-gray-50 text-dark-900"
+                "grid grid-cols-4 border-b",
+                isDark ? "border-dark-700" : "border-gray-200"
               )}>
-                <Server className="w-6 h-6 mb-2 text-blue-500" />
-                Compare Plans
-              </div>
-              {vpsPlans.map((plan) => (
-                <div
-                  key={plan.name}
-                  className={clsx(
-                    "p-6 text-center relative",
-                    plan.popular
-                      ? "bg-gradient-to-b from-blue-500/10 to-purple-500/5"
-                      : isDark ? "bg-dark-800/50" : "bg-gray-50/50"
-                  )}
-                >
-                  {plan.popular && (
-                    <div className="absolute -top-0 left-1/2 -translate-x-1/2 px-3 py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs font-bold rounded-b-lg">
-                      POPULAR
-                    </div>
-                  )}
-                  <h3 className={clsx(
-                    "text-lg font-bold mb-2",
-                    isDark ? "text-white" : "text-dark-900"
-                  )}>{plan.name.replace('VPS ', '')}</h3>
-                  <div className="flex items-baseline justify-center gap-1">
-                    <span className={clsx(
-                      "text-3xl font-bold",
-                      plan.popular ? "text-blue-500" : isDark ? "text-white" : "text-dark-900"
-                    )}>{format(plan.price)}</span>
-                    <span className={isDark ? "text-dark-400" : "text-dark-500"}>/mo</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Spec Rows */}
-            {specRows.map((spec, rowIndex) => (
-              <div
-                key={spec.key}
-                className={clsx(
-                  "grid grid-cols-4 border-b",
-                  isDark ? "border-dark-700" : "border-gray-100",
-                  rowIndex % 2 === 0
-                    ? isDark ? "bg-dark-800/30" : "bg-gray-50/50"
-                    : ""
-                )}
-              >
                 <div className={clsx(
-                  "p-4 flex items-center gap-3",
-                  isDark ? "text-dark-300" : "text-dark-600"
+                  "p-3 sm:p-6 font-semibold",
+                  isDark ? "bg-dark-800 text-white" : "bg-gray-50 text-dark-900"
                 )}>
-                  <spec.icon className="w-5 h-5 text-blue-500" />
-                  <span className="font-medium">{spec.label}</span>
+                  <Server className="w-5 h-5 sm:w-6 sm:h-6 mb-1 sm:mb-2 text-blue-500" />
+                  <span className="text-xs sm:text-base">Compare</span>
                 </div>
                 {vpsPlans.map((plan) => (
                   <div
-                    key={`${plan.name}-${spec.key}`}
+                    key={plan.name}
                     className={clsx(
-                      "p-4 text-center flex items-center justify-center",
-                      plan.popular ? "bg-blue-500/5" : "",
-                      isDark ? "text-white" : "text-dark-800"
+                      "p-2 sm:p-6 text-center relative",
+                      plan.popular
+                        ? "bg-gradient-to-b from-blue-500/10 to-purple-500/5"
+                        : isDark ? "bg-dark-800/50" : "bg-gray-50/50"
                     )}
                   >
-                    <span className="font-medium">{plan[spec.key] || '-'}</span>
+                    {plan.popular && (
+                      <div className="absolute -top-0 left-1/2 -translate-x-1/2 px-2 py-0.5 sm:px-3 sm:py-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-[10px] sm:text-xs font-bold rounded-b-lg">
+                        POPULAR
+                      </div>
+                    )}
+                    <h3 className={clsx(
+                      "text-sm sm:text-lg font-bold mb-1 sm:mb-2 mt-2 sm:mt-0",
+                      isDark ? "text-white" : "text-dark-900"
+                    )}>{plan.name.replace('VPS ', '')}</h3>
+                    <div className="flex items-baseline justify-center gap-0.5">
+                      <span className={clsx(
+                        "text-lg sm:text-3xl font-bold",
+                        plan.popular ? "text-blue-500" : isDark ? "text-white" : "text-dark-900"
+                      )}>{format(plan.price)}</span>
+                      <span className={clsx("text-[10px] sm:text-sm", isDark ? "text-dark-400" : "text-dark-500")}>/mo</span>
+                    </div>
                   </div>
                 ))}
               </div>
-            ))}
 
-            {/* Boolean Features */}
-            {[
-              { key: 'rootAccess', label: 'Full Root Access' },
-              { key: 'kvm', label: 'KVM Virtualization' },
-              { key: 'ddos', label: 'DDoS Protection' },
-              { key: 'backup', label: 'Daily Backups' },
-              { key: 'dedicatedIp', label: 'Dedicated IP' },
-            ].map((feature, rowIndex) => (
-              <div
-                key={feature.key}
-                className={clsx(
-                  "grid grid-cols-4 border-b",
-                  isDark ? "border-dark-700" : "border-gray-100",
-                  (specRows.length + rowIndex) % 2 === 0
-                    ? isDark ? "bg-dark-800/30" : "bg-gray-50/50"
-                    : ""
-                )}
-              >
-                <div className={clsx(
-                  "p-4 flex items-center gap-3",
-                  isDark ? "text-dark-300" : "text-dark-600"
-                )}>
-                  <Shield className="w-5 h-5 text-blue-500" />
-                  <span className="font-medium">{feature.label}</span>
+              {/* Spec Rows */}
+              {specRows.map((spec, rowIndex) => (
+                <div
+                  key={spec.key}
+                  className={clsx(
+                    "grid grid-cols-4 border-b",
+                    isDark ? "border-dark-700" : "border-gray-100",
+                    rowIndex % 2 === 0
+                      ? isDark ? "bg-dark-800/30" : "bg-gray-50/50"
+                      : ""
+                  )}
+                >
+                  <div className={clsx(
+                    "p-2 sm:p-4 flex items-center gap-2 sm:gap-3",
+                    isDark ? "text-dark-300" : "text-dark-600"
+                  )}>
+                    <spec.icon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 flex-shrink-0" />
+                    <span className="font-medium text-xs sm:text-base">{spec.label}</span>
+                  </div>
+                  {vpsPlans.map((plan) => (
+                    <div
+                      key={`${plan.name}-${spec.key}`}
+                      className={clsx(
+                        "p-2 sm:p-4 text-center flex items-center justify-center",
+                        plan.popular ? "bg-blue-500/5" : "",
+                        isDark ? "text-white" : "text-dark-800"
+                      )}
+                    >
+                      <span className="font-medium text-xs sm:text-base">{plan[spec.key] || '-'}</span>
+                    </div>
+                  ))}
                 </div>
+              ))}
+
+              {/* Boolean Features */}
+              {[
+                { key: 'rootAccess', label: 'Full Root Access' },
+                { key: 'kvm', label: 'KVM Virtualization' },
+                { key: 'ddos', label: 'DDoS Protection' },
+                { key: 'backup', label: 'Daily Backups' },
+                { key: 'dedicatedIp', label: 'Dedicated IP' },
+              ].map((feature, rowIndex) => (
+                <div
+                  key={feature.key}
+                  className={clsx(
+                    "grid grid-cols-4 border-b",
+                    isDark ? "border-dark-700" : "border-gray-100",
+                    (specRows.length + rowIndex) % 2 === 0
+                      ? isDark ? "bg-dark-800/30" : "bg-gray-50/50"
+                      : ""
+                  )}
+                >
+                  <div className={clsx(
+                    "p-4 flex items-center gap-3",
+                    isDark ? "text-dark-300" : "text-dark-600"
+                  )}>
+                    <Shield className="w-5 h-5 text-blue-500" />
+                    <span className="font-medium">{feature.label}</span>
+                  </div>
+                  {vpsPlans.map((plan) => (
+                    <div
+                      key={`${plan.name}-${feature.key}`}
+                      className={clsx(
+                        "p-4 text-center flex items-center justify-center",
+                        plan.popular ? "bg-blue-500/5" : ""
+                      )}
+                    >
+                      {plan[feature.key] ? (
+                        <Check className="w-5 h-5 text-green-500" />
+                      ) : (
+                        <X className="w-5 h-5 text-dark-400" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+
+              {/* Action Row */}
+              <div className={clsx(
+                "grid grid-cols-4",
+                isDark ? "bg-dark-800" : "bg-gray-50"
+              )}>
+                <div className="p-6"></div>
                 {vpsPlans.map((plan) => (
                   <div
-                    key={`${plan.name}-${feature.key}`}
+                    key={`action-${plan.name}`}
                     className={clsx(
-                      "p-4 text-center flex items-center justify-center",
+                      "p-6 text-center",
                       plan.popular ? "bg-blue-500/5" : ""
                     )}
                   >
-                    {plan[feature.key] ? (
-                      <Check className="w-5 h-5 text-green-500" />
-                    ) : (
-                      <X className="w-5 h-5 text-dark-400" />
-                    )}
+                    <button
+                      onClick={() => handleAddToCart(plan)}
+                      className={clsx(
+                        "w-full py-3 px-6 rounded-xl font-semibold transition-all flex items-center justify-center gap-2",
+                        plan.popular
+                          ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:shadow-lg hover:shadow-blue-500/30"
+                          : isDark
+                            ? "bg-white/10 text-white hover:bg-white/20 border border-white/20"
+                            : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                      )}
+                    >
+                      Get Started <ArrowRight className="w-4 h-4" />
+                    </button>
                   </div>
                 ))}
               </div>
-            ))}
-
-            {/* Action Row */}
-            <div className={clsx(
-              "grid grid-cols-4",
-              isDark ? "bg-dark-800" : "bg-gray-50"
-            )}>
-              <div className="p-6"></div>
-              {vpsPlans.map((plan) => (
-                <div
-                  key={`action-${plan.name}`}
-                  className={clsx(
-                    "p-6 text-center",
-                    plan.popular ? "bg-blue-500/5" : ""
-                  )}
-                >
-                  <button
-                    onClick={() => handleAddToCart(plan)}
-                    className={clsx(
-                      "w-full py-3 px-6 rounded-xl font-semibold transition-all flex items-center justify-center gap-2",
-                      plan.popular
-                        ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:shadow-lg hover:shadow-blue-500/30"
-                        : isDark
-                          ? "bg-white/10 text-white hover:bg-white/20 border border-white/20"
-                          : "bg-blue-100 text-blue-700 hover:bg-blue-200"
-                    )}
-                  >
-                    Get Started <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
 
           {/* Trust badges */}
           <motion.div
@@ -632,7 +635,7 @@ export default function VPS() {
                       <span className="ml-auto text-sm text-green-600 font-medium">Save {getBillingDiscount()}%</span>
                     )}
                   </div>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
                       { value: 'monthly', label: 'Monthly', discount: 0 },
                       { value: '1_year', label: '1 Year', discount: pricing.discount_1_year },
@@ -643,15 +646,15 @@ export default function VPS() {
                         key={period.value}
                         onClick={() => updateConfig('billingPeriod', period.value)}
                         className={clsx(
-                          "p-3 rounded-xl text-center transition-all",
+                          "p-2 sm:p-3 rounded-xl text-center transition-all",
                           customConfig.billingPeriod === period.value
-                            ? "bg-amber-500 text-white"
+                            ? "bg-amber-500 text-white shadow-lg shadow-amber-500/30"
                             : "bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 hover:border-amber-500"
                         )}
                       >
-                        <div className="font-medium text-sm">{period.label}</div>
+                        <div className="font-medium text-xs sm:text-sm">{period.label}</div>
                         {period.discount > 0 && (
-                          <div className="text-xs opacity-80">-{period.discount}%</div>
+                          <div className="text-[10px] sm:text-xs opacity-80">-{period.discount}%</div>
                         )}
                       </button>
                     ))}
@@ -664,19 +667,19 @@ export default function VPS() {
                     <Globe className="w-5 h-5 text-red-500" />
                     <span className="font-medium">Datacenter Location</span>
                   </div>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {(pricing.datacenters || ['UK', 'Germany North', 'Spain', 'USA']).map(dc => (
                       <button
                         key={dc}
                         onClick={() => updateConfig('datacenter', dc)}
                         className={clsx(
-                          "p-3 rounded-xl text-center transition-all",
+                          "p-2 sm:p-3 rounded-xl text-center transition-all",
                           customConfig.datacenter === dc
-                            ? "bg-red-500 text-white"
+                            ? "bg-red-500 text-white shadow-lg shadow-red-500/30"
                             : "bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 hover:border-red-500"
                         )}
                       >
-                        <div className="font-medium text-sm">{dc}</div>
+                        <div className="font-medium text-xs sm:text-sm">{dc}</div>
                       </button>
                     ))}
                   </div>
