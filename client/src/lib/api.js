@@ -24,7 +24,10 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // Only redirect to login if user WAS authenticated (had a token) and got 401
+    // This prevents redirecting public page visitors when background admin checks fail
+    const hadToken = useAuthStore.getState().token
+    if (error.response?.status === 401 && hadToken) {
       useAuthStore.getState().logout()
       window.location.href = '/login'
     }
