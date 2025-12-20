@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Helmet } from 'react-helmet-async'
-import { Save, Cpu, HardDrive, Gauge, Globe, Server, DollarSign } from 'lucide-react'
+import { Save, Cpu, HardDrive, Gauge, Globe, Server, DollarSign, MapPin, Percent, Check, Lock, Headphones, User } from 'lucide-react'
 import { settingsAPI } from '../../lib/api'
 import toast from 'react-hot-toast'
 
@@ -10,32 +10,48 @@ const defaultPricing = {
   ram_price_per_gb: 1.50,
   storage_price_per_gb: 0.05,
   bandwidth_price_per_tb: 1.00,
-  
+
   // Minimum values
   min_cpu: 1,
   min_ram: 1,
   min_storage: 20,
   min_bandwidth: 1,
-  
+
   // Maximum values
   max_cpu: 32,
   max_ram: 128,
   max_storage: 2000,
   max_bandwidth: 100,
-  
+
   // Step values
   cpu_step: 1,
   ram_step: 1,
   storage_step: 10,
   bandwidth_step: 1,
-  
-  // Base fee (setup/management)
-  base_fee: 2.00,
-  
+
   // Feature add-ons
   ddos_protection_price: 5.00,
-  backup_price: 3.00,
-  managed_support_price: 10.00,
+  backup_price_per_gb: 0.05,
+
+  // Backup limits
+  min_backup_gb: 0,
+  max_backup_gb: 500,
+  backup_step: 10,
+
+  // Billing period discounts (percentage off)
+  discount_1_year: 10,
+  discount_2_years: 15,
+  discount_3_years: 20,
+
+  // Included features (free)
+  plesk_included: true,
+  managed_vps_included: true,
+  ssl_included: true,
+  free_support_included: true,
+  personal_consultant_included: true,
+
+  // Datacenter locations
+  datacenters: ['UK', 'Germany North', 'Spain', 'USA']
 }
 
 export default function AdminCustomizePlans() {
@@ -77,13 +93,14 @@ export default function AdminCustomizePlans() {
     const ram = 8
     const storage = 100
     const bandwidth = 5
-    return (
-      pricing.base_fee +
+    const backupGb = 50
+    const monthlyTotal =
       (cpu * pricing.cpu_price_per_core) +
       (ram * pricing.ram_price_per_gb) +
       (storage * pricing.storage_price_per_gb) +
-      (bandwidth * pricing.bandwidth_price_per_tb)
-    ).toFixed(2)
+      (bandwidth * pricing.bandwidth_price_per_tb) +
+      (backupGb * pricing.backup_price_per_gb)
+    return monthlyTotal.toFixed(2)
   }
 
   if (loading) {
@@ -111,7 +128,7 @@ export default function AdminCustomizePlans() {
             <DollarSign className="w-5 h-5 text-green-500" />
             Per-Unit Pricing
           </h2>
-          
+
           <div className="space-y-4">
             <div>
               <label className="flex items-center gap-2 text-sm font-medium mb-2">
@@ -172,32 +189,69 @@ export default function AdminCustomizePlans() {
                 className="input"
               />
             </div>
+          </div>
+        </div>
 
-            <div className="pt-4 border-t">
-              <label className="flex items-center gap-2 text-sm font-medium mb-2">
-                <Server className="w-4 h-4 text-amber-500" />
-                Base Fee ($/month)
-              </label>
+        {/* Billing Period Discounts */}
+        <div className="card p-6">
+          <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
+            <Percent className="w-5 h-5 text-orange-500" />
+            Billing Period Discounts
+          </h2>
+
+          <div className="space-y-4">
+            <div className="p-3 bg-dark-50 dark:bg-dark-800 rounded-lg">
+              <div className="flex justify-between items-center">
+                <span className="font-medium">Monthly</span>
+                <span className="text-dark-500">No discount (base price)</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">1-Year Discount (%)</label>
               <input
                 type="number"
-                step="0.01"
                 min="0"
-                value={pricing.base_fee}
-                onChange={(e) => setPricing(prev => ({ ...prev, base_fee: parseFloat(e.target.value) || 0 }))}
+                max="50"
+                value={pricing.discount_1_year}
+                onChange={(e) => setPricing(prev => ({ ...prev, discount_1_year: parseInt(e.target.value) || 0 }))}
                 className="input"
               />
-              <p className="text-xs text-dark-500 mt-1">Fixed monthly fee added to all custom VPS</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">2-Years Discount (%)</label>
+              <input
+                type="number"
+                min="0"
+                max="50"
+                value={pricing.discount_2_years}
+                onChange={(e) => setPricing(prev => ({ ...prev, discount_2_years: parseInt(e.target.value) || 0 }))}
+                className="input"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">3-Years Discount (%)</label>
+              <input
+                type="number"
+                min="0"
+                max="50"
+                value={pricing.discount_3_years}
+                onChange={(e) => setPricing(prev => ({ ...prev, discount_3_years: parseInt(e.target.value) || 0 }))}
+                className="input"
+              />
             </div>
           </div>
         </div>
 
-        {/* Limits Configuration */}
+        {/* Resource Limits */}
         <div className="card p-6">
           <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
             <Server className="w-5 h-5 text-blue-500" />
             Resource Limits
           </h2>
-          
+
           <div className="space-y-6">
             {/* CPU Limits */}
             <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
@@ -360,7 +414,7 @@ export default function AdminCustomizePlans() {
         {/* Add-on Features */}
         <div className="card p-6">
           <h2 className="text-lg font-bold mb-6">Add-on Features Pricing</h2>
-          
+
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">DDoS Protection ($/month)</label>
@@ -374,63 +428,194 @@ export default function AdminCustomizePlans() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">Automated Backups ($/month)</label>
+            <div className="pt-4 border-t">
+              <label className="block text-sm font-medium mb-2">Automated Backups ($/GB/month)</label>
               <input
                 type="number"
-                step="0.01"
+                step="0.001"
                 min="0"
-                value={pricing.backup_price}
-                onChange={(e) => setPricing(prev => ({ ...prev, backup_price: parseFloat(e.target.value) || 0 }))}
+                value={pricing.backup_price_per_gb}
+                onChange={(e) => setPricing(prev => ({ ...prev, backup_price_per_gb: parseFloat(e.target.value) || 0 }))}
                 className="input"
               />
+              <p className="text-xs text-dark-500 mt-1">Customers choose how many GB of backup storage</p>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">Managed Support ($/month)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={pricing.managed_support_price}
-                onChange={(e) => setPricing(prev => ({ ...prev, managed_support_price: parseFloat(e.target.value) || 0 }))}
-                className="input"
-              />
+            {/* Backup Limits */}
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl">
+              <h3 className="font-medium text-amber-800 dark:text-amber-200 mb-3 flex items-center gap-2">
+                <HardDrive className="w-4 h-4" /> Backup Storage Limits (GB)
+              </h3>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs mb-1">Min</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={pricing.min_backup_gb}
+                    onChange={(e) => setPricing(prev => ({ ...prev, min_backup_gb: parseInt(e.target.value) || 0 }))}
+                    className="input text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs mb-1">Max</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={pricing.max_backup_gb}
+                    onChange={(e) => setPricing(prev => ({ ...prev, max_backup_gb: parseInt(e.target.value) || 500 }))}
+                    className="input text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs mb-1">Step</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={pricing.backup_step}
+                    onChange={(e) => setPricing(prev => ({ ...prev, backup_step: parseInt(e.target.value) || 10 }))}
+                    className="input text-sm"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
+        {/* Included Features (Free) */}
+        <div className="card p-6">
+          <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
+            <Check className="w-5 h-5 text-green-500" />
+            Included Features (FREE)
+          </h2>
+          <p className="text-sm text-dark-500 mb-4">These features are included with all VPS at no extra cost</p>
+
+          <div className="space-y-3">
+            <label className="flex items-center gap-3 p-3 bg-dark-50 dark:bg-dark-800 rounded-lg cursor-pointer">
+              <input
+                type="checkbox"
+                checked={pricing.plesk_included}
+                onChange={(e) => setPricing(prev => ({ ...prev, plesk_included: e.target.checked }))}
+                className="w-5 h-5 rounded text-green-500"
+              />
+              <Server className="w-5 h-5 text-blue-500" />
+              <span className="font-medium">Plesk Included</span>
+            </label>
+
+            <label className="flex items-center gap-3 p-3 bg-dark-50 dark:bg-dark-800 rounded-lg cursor-pointer">
+              <input
+                type="checkbox"
+                checked={pricing.managed_vps_included}
+                onChange={(e) => setPricing(prev => ({ ...prev, managed_vps_included: e.target.checked }))}
+                className="w-5 h-5 rounded text-green-500"
+              />
+              <Headphones className="w-5 h-5 text-purple-500" />
+              <span className="font-medium">Managed VPS</span>
+            </label>
+
+            <label className="flex items-center gap-3 p-3 bg-dark-50 dark:bg-dark-800 rounded-lg cursor-pointer">
+              <input
+                type="checkbox"
+                checked={pricing.ssl_included}
+                onChange={(e) => setPricing(prev => ({ ...prev, ssl_included: e.target.checked }))}
+                className="w-5 h-5 rounded text-green-500"
+              />
+              <Lock className="w-5 h-5 text-green-500" />
+              <span className="font-medium">SSL Certificate Included</span>
+            </label>
+
+            <label className="flex items-center gap-3 p-3 bg-dark-50 dark:bg-dark-800 rounded-lg cursor-pointer">
+              <input
+                type="checkbox"
+                checked={pricing.free_support_included}
+                onChange={(e) => setPricing(prev => ({ ...prev, free_support_included: e.target.checked }))}
+                className="w-5 h-5 rounded text-green-500"
+              />
+              <Headphones className="w-5 h-5 text-cyan-500" />
+              <span className="font-medium">FREE Technical Support</span>
+            </label>
+
+            <label className="flex items-center gap-3 p-3 bg-dark-50 dark:bg-dark-800 rounded-lg cursor-pointer">
+              <input
+                type="checkbox"
+                checked={pricing.personal_consultant_included}
+                onChange={(e) => setPricing(prev => ({ ...prev, personal_consultant_included: e.target.checked }))}
+                className="w-5 h-5 rounded text-green-500"
+              />
+              <User className="w-5 h-5 text-amber-500" />
+              <span className="font-medium">Personal Consultant</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Datacenter Locations */}
+        <div className="card p-6">
+          <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-red-500" />
+            Datacenter Locations
+          </h2>
+          <p className="text-sm text-dark-500 mb-4">Available datacenter locations for customers</p>
+
+          <div className="space-y-2">
+            {['UK', 'Germany North', 'Spain', 'USA'].map(location => (
+              <div key={location} className="flex items-center gap-3 p-3 bg-dark-50 dark:bg-dark-800 rounded-lg">
+                <MapPin className="w-5 h-5 text-red-500" />
+                <span className="font-medium">{location}</span>
+                <Check className="w-5 h-5 text-green-500 ml-auto" />
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Example Calculation */}
-        <div className="card p-6 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
+        <div className="card p-6 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 lg:col-span-2">
           <h2 className="text-lg font-bold mb-4">Example Calculation</h2>
           <p className="text-sm text-dark-600 dark:text-dark-300 mb-4">
-            A VPS with 4 vCPU, 8GB RAM, 100GB Storage, 5TB Bandwidth:
+            A VPS with 4 vCPU, 8GB RAM, 100GB Storage, 5TB Bandwidth, 50GB Backup:
           </p>
-          
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span>Base Fee:</span>
-              <span>${pricing.base_fee.toFixed(2)}</span>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>4 vCPU × ${pricing.cpu_price_per_core}:</span>
+                <span>${(4 * pricing.cpu_price_per_core).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>8 GB RAM × ${pricing.ram_price_per_gb}:</span>
+                <span>${(8 * pricing.ram_price_per_gb).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>100 GB Storage × ${pricing.storage_price_per_gb}:</span>
+                <span>${(100 * pricing.storage_price_per_gb).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>5 TB Bandwidth × ${pricing.bandwidth_price_per_tb}:</span>
+                <span>${(5 * pricing.bandwidth_price_per_tb).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>50 GB Backup × ${pricing.backup_price_per_gb}:</span>
+                <span>${(50 * pricing.backup_price_per_gb).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between pt-2 border-t font-bold text-lg">
+                <span>Monthly Total:</span>
+                <span className="text-primary-600">${calculateExample()}/mo</span>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span>4 vCPU × ${pricing.cpu_price_per_core}:</span>
-              <span>${(4 * pricing.cpu_price_per_core).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>8 GB RAM × ${pricing.ram_price_per_gb}:</span>
-              <span>${(8 * pricing.ram_price_per_gb).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>100 GB Storage × ${pricing.storage_price_per_gb}:</span>
-              <span>${(100 * pricing.storage_price_per_gb).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>5 TB Bandwidth × ${pricing.bandwidth_price_per_tb}:</span>
-              <span>${(5 * pricing.bandwidth_price_per_tb).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between pt-2 border-t font-bold text-lg">
-              <span>Total:</span>
-              <span className="text-primary-600">${calculateExample()}/mo</span>
+
+            <div className="space-y-2 text-sm">
+              <div className="font-medium mb-2">With Billing Discounts:</div>
+              <div className="flex justify-between">
+                <span>1-Year ({pricing.discount_1_year}% off):</span>
+                <span>${(calculateExample() * (1 - pricing.discount_1_year / 100)).toFixed(2)}/mo</span>
+              </div>
+              <div className="flex justify-between">
+                <span>2-Years ({pricing.discount_2_years}% off):</span>
+                <span>${(calculateExample() * (1 - pricing.discount_2_years / 100)).toFixed(2)}/mo</span>
+              </div>
+              <div className="flex justify-between">
+                <span>3-Years ({pricing.discount_3_years}% off):</span>
+                <span>${(calculateExample() * (1 - pricing.discount_3_years / 100)).toFixed(2)}/mo</span>
+              </div>
             </div>
           </div>
         </div>

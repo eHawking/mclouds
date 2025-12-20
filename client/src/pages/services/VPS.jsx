@@ -46,12 +46,10 @@ export default function VPS() {
     ram: 4,
     storage: 80,
     bandwidth: 3,
-    billingPeriod: 'monthly', // monthly, 1year, 2years, 3years
-    datacenter: 'germany', // uk, germany, spain, usa
     ddos: false,
-    plesk: false,
-    managed: false,
-    backupGB: 0 // GB of backup storage (0 = no backup)
+    backupGb: 0,
+    billingPeriod: 'monthly',
+    datacenter: 'UK'
   })
 
   const { data: pricingData } = useQuery({
@@ -74,69 +72,61 @@ export default function VPS() {
     max_cpu: 32, max_ram: 128, max_storage: 2000, max_bandwidth: 100,
     cpu_step: 1, ram_step: 1, storage_step: 10, bandwidth_step: 1,
     ddos_protection_price: 5.00,
-    plesk_price: 10.00,
-    managed_vps_price: 15.00,
-    backup_price_per_gb: 0.10,
-    min_backup_gb: 0,
-    max_backup_gb: 500,
-    backup_step: 10,
-    // Yearly discounts (percentage off)
-    discount_1year: 10,
-    discount_2years: 15,
-    discount_3years: 20,
-    // Datacenters
-    datacenters: [
-      { id: 'uk', name: 'United Kingdom', flag: '🇬🇧' },
-      { id: 'germany', name: 'Germany North', flag: '🇩🇪' },
-      { id: 'spain', name: 'Spain', flag: '🇪🇸' },
-      { id: 'usa', name: 'United States', flag: '🇺🇸' },
-    ]
+    backup_price_per_gb: 0.05,
+    min_backup_gb: 0, max_backup_gb: 500, backup_step: 10,
+    discount_1_year: 10,
+    discount_2_years: 15,
+    discount_3_years: 20,
+    plesk_included: true,
+    managed_vps_included: true,
+    ssl_included: true,
+    free_support_included: true,
+    personal_consultant_included: true,
+    datacenters: ['UK', 'Germany North', 'Spain', 'USA']
   }
 
-  // Calculate custom VPS price
-  const calculateCustomPrice = () => {
-    let monthlyTotal = 0
-    // Base resources
-    monthlyTotal += customConfig.cpu * pricing.cpu_price_per_core
-    monthlyTotal += customConfig.ram * pricing.ram_price_per_gb
-    monthlyTotal += customConfig.storage * pricing.storage_price_per_gb
-    monthlyTotal += customConfig.bandwidth * pricing.bandwidth_price_per_tb
-    // Add-ons
-    if (customConfig.ddos) monthlyTotal += pricing.ddos_protection_price
-    if (customConfig.plesk) monthlyTotal += pricing.plesk_price
-    if (customConfig.managed) monthlyTotal += pricing.managed_vps_price
-    if (customConfig.backupGB > 0) monthlyTotal += customConfig.backupGB * pricing.backup_price_per_gb
-
-    // Apply yearly discount
-    let discount = 0
-    let months = 1
-    if (customConfig.billingPeriod === '1year') {
-      discount = pricing.discount_1year / 100
-      months = 12
-    } else if (customConfig.billingPeriod === '2years') {
-      discount = pricing.discount_2years / 100
-      months = 24
-    } else if (customConfig.billingPeriod === '3years') {
-      discount = pricing.discount_3years / 100
-      months = 36
+  // Get billing discount
+  const getBillingDiscount = () => {
+    switch (customConfig.billingPeriod) {
+      case '1_year': return pricing.discount_1_year || 10
+      case '2_years': return pricing.discount_2_years || 15
+      case '3_years': return pricing.discount_3_years || 20
+      default: return 0
     }
+  }
 
-    const discountedMonthly = monthlyTotal * (1 - discount)
-    return { monthly: discountedMonthly, total: discountedMonthly * months, discount, months }
+  // Calculate custom VPS price (monthly)
+  const calculateCustomPrice = () => {
+    let total = 0
+    total += customConfig.cpu * pricing.cpu_price_per_core
+    total += customConfig.ram * pricing.ram_price_per_gb
+    total += customConfig.storage * pricing.storage_price_per_gb
+    total += customConfig.bandwidth * pricing.bandwidth_price_per_tb
+    if (customConfig.ddos) total += pricing.ddos_protection_price
+    total += customConfig.backupGb * (pricing.backup_price_per_gb || 0.05)
+
+    // Apply billing discount
+    const discount = getBillingDiscount()
+    total = total * (1 - discount / 100)
+
+    return total
   }
 
   const handleAddCustomToCart = () => {
-    const priceInfo = calculateCustomPrice()
-    const billingLabels = { monthly: 'Monthly', '1year': '1 Year', '2years': '2 Years', '3years': '3 Years' }
-    const datacenterLabel = (pricing.datacenters || []).find(d => d.id === customConfig.datacenter)?.name || customConfig.datacenter
+    const price = calculateCustomPrice()
+    const billingLabel = {
+      'monthly': 'Monthly',
+      '1_year': '1 Year',
+      '2_years': '2 Years',
+      '3_years': '3 Years'
+    }[customConfig.billingPeriod] || 'Monthly'
 
     addItem({
       id: `custom-vps-${Date.now()}`,
       type: 'product',
-      name: `Custom VPS (${customConfig.cpu} vCPU, ${customConfig.ram}GB RAM, ${customConfig.storage}GB SSD) - ${datacenterLabel}`,
-      price: priceInfo.monthly,
-      billingCycle: customConfig.billingPeriod === 'monthly' ? 'monthly' : 'yearly',
-      billingPeriod: customConfig.billingPeriod,
+      name: `Custom VPS (${customConfig.cpu} vCPU, ${customConfig.ram}GB RAM, ${customConfig.storage}GB SSD) - ${customConfig.datacenter}`,
+      price: price,
+      billingCycle: customConfig.billingPeriod,
       product_type: 'vps',
       customConfig: customConfig
     })
@@ -633,86 +623,78 @@ export default function VPS() {
                   </div>
                 </div>
 
-                {/* Billing Period & Datacenter */}
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {/* Billing Period */}
-                  <div className="p-4 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-2xl">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Star className="w-5 h-5 text-indigo-500" />
-                      <span className="font-medium">Billing Period</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {[
-                        { id: 'monthly', label: 'Monthly', discount: 0 },
-                        { id: '1year', label: '1 Year', discount: pricing.discount_1year },
-                        { id: '2years', label: '2 Years', discount: pricing.discount_2years },
-                        { id: '3years', label: '3 Years', discount: pricing.discount_3years },
-                      ].map(period => (
-                        <button
-                          key={period.id}
-                          onClick={() => updateConfig('billingPeriod', period.id)}
-                          className={clsx(
-                            "p-3 rounded-xl text-sm font-medium transition-all relative",
-                            customConfig.billingPeriod === period.id
-                              ? "bg-indigo-500 text-white shadow-lg"
-                              : "bg-white dark:bg-dark-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/30"
-                          )}
-                        >
-                          {period.label}
-                          {period.discount > 0 && (
-                            <span className={clsx(
-                              "absolute -top-2 -right-2 px-1.5 py-0.5 text-xs rounded-full",
-                              customConfig.billingPeriod === period.id
-                                ? "bg-green-400 text-green-900"
-                                : "bg-green-500 text-white"
-                            )}>
-                              -{period.discount}%
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
+                {/* Billing Period */}
+                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Zap className="w-5 h-5 text-amber-500" />
+                    <span className="font-medium">Billing Period</span>
+                    {getBillingDiscount() > 0 && (
+                      <span className="ml-auto text-sm text-green-600 font-medium">Save {getBillingDiscount()}%</span>
+                    )}
                   </div>
-
-                  {/* Datacenter Location */}
-                  <div className="p-4 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-2xl">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Globe className="w-5 h-5 text-blue-500" />
-                      <span className="font-medium">Datacenter Location</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {(pricing.datacenters || []).map(dc => (
-                        <button
-                          key={dc.id}
-                          onClick={() => updateConfig('datacenter', dc.id)}
-                          className={clsx(
-                            "p-3 rounded-xl text-sm font-medium transition-all flex items-center gap-2",
-                            customConfig.datacenter === dc.id
-                              ? "bg-blue-500 text-white shadow-lg"
-                              : "bg-white dark:bg-dark-800 hover:bg-blue-100 dark:hover:bg-blue-900/30"
-                          )}
-                        >
-                          <span>{dc.flag}</span>
-                          <span className="truncate">{dc.name}</span>
-                        </button>
-                      ))}
-                    </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { value: 'monthly', label: 'Monthly', discount: 0 },
+                      { value: '1_year', label: '1 Year', discount: pricing.discount_1_year },
+                      { value: '2_years', label: '2 Years', discount: pricing.discount_2_years },
+                      { value: '3_years', label: '3 Years', discount: pricing.discount_3_years }
+                    ].map(period => (
+                      <button
+                        key={period.value}
+                        onClick={() => updateConfig('billingPeriod', period.value)}
+                        className={clsx(
+                          "p-3 rounded-xl text-center transition-all",
+                          customConfig.billingPeriod === period.value
+                            ? "bg-amber-500 text-white"
+                            : "bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 hover:border-amber-500"
+                        )}
+                      >
+                        <div className="font-medium text-sm">{period.label}</div>
+                        {period.discount > 0 && (
+                          <div className="text-xs opacity-80">-{period.discount}%</div>
+                        )}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Automated Backups Slider */}
-                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-2xl">
+                {/* Datacenter Location */}
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-2xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Globe className="w-5 h-5 text-red-500" />
+                    <span className="font-medium">Datacenter Location</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {(pricing.datacenters || ['UK', 'Germany North', 'Spain', 'USA']).map(dc => (
+                      <button
+                        key={dc}
+                        onClick={() => updateConfig('datacenter', dc)}
+                        className={clsx(
+                          "p-3 rounded-xl text-center transition-all",
+                          customConfig.datacenter === dc
+                            ? "bg-red-500 text-white"
+                            : "bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 hover:border-red-500"
+                        )}
+                      >
+                        <div className="font-medium text-sm">{dc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Backup Storage Slider */}
+                <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <HardDrive className="w-5 h-5 text-amber-500" />
+                      <HardDrive className="w-5 h-5 text-indigo-500" />
                       <span className="font-medium">Automated Backups</span>
                     </div>
-                    <span className="text-sm text-dark-500">${pricing.backup_price_per_gb}/GB</span>
+                    <span className="text-sm text-dark-500">${pricing.backup_price_per_gb || 0.05}/GB</span>
                   </div>
                   <div className="flex items-center gap-4">
                     <button
-                      onClick={() => decrementConfig('backupGB', pricing.backup_step || 10, pricing.min_backup_gb || 0)}
-                      className="w-10 h-10 rounded-full bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 flex items-center justify-center hover:border-amber-500 transition-colors"
+                      onClick={() => decrementConfig('backupGb', pricing.backup_step || 10, pricing.min_backup_gb || 0)}
+                      className="w-10 h-10 rounded-full bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 flex items-center justify-center hover:border-indigo-500 transition-colors"
                     >
                       <Minus className="w-4 h-4" />
                     </button>
@@ -722,29 +704,26 @@ export default function VPS() {
                         min={pricing.min_backup_gb || 0}
                         max={pricing.max_backup_gb || 500}
                         step={pricing.backup_step || 10}
-                        value={customConfig.backupGB}
-                        onChange={(e) => updateConfig('backupGB', parseInt(e.target.value))}
-                        className="w-full accent-amber-500"
+                        value={customConfig.backupGb}
+                        onChange={(e) => updateConfig('backupGb', parseInt(e.target.value))}
+                        className="w-full accent-indigo-500"
                       />
                     </div>
                     <button
-                      onClick={() => incrementConfig('backupGB', pricing.backup_step || 10, pricing.max_backup_gb || 500)}
-                      className="w-10 h-10 rounded-full bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 flex items-center justify-center hover:border-amber-500 transition-colors"
+                      onClick={() => incrementConfig('backupGb', pricing.backup_step || 10, pricing.max_backup_gb || 500)}
+                      className="w-10 h-10 rounded-full bg-white dark:bg-dark-800 border border-dark-200 dark:border-dark-700 flex items-center justify-center hover:border-indigo-500 transition-colors"
                     >
                       <Plus className="w-4 h-4" />
                     </button>
                     <div className="w-20 text-center">
-                      <span className="text-2xl font-bold text-amber-600">{customConfig.backupGB}</span>
+                      <span className="text-2xl font-bold text-indigo-600">{customConfig.backupGb}</span>
                       <span className="text-sm text-dark-500 ml-1">GB</span>
                     </div>
                   </div>
-                  {customConfig.backupGB === 0 && (
-                    <p className="text-xs text-dark-400 mt-2">No backup storage selected</p>
-                  )}
                 </div>
 
-                {/* Feature Add-ons */}
-                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Add-ons */}
+                <div className="grid sm:grid-cols-1 gap-4">
                   <label className={clsx(
                     "p-4 rounded-xl border-2 cursor-pointer transition-all",
                     customConfig.ddos
@@ -757,76 +736,54 @@ export default function VPS() {
                       onChange={(e) => updateConfig('ddos', e.target.checked)}
                       className="hidden"
                     />
-                    <Shield className="w-6 h-6 text-green-500 mb-2" />
-                    <div className="font-medium text-sm">DDoS Protection</div>
-                    <div className="text-xs text-dark-500">+${pricing.ddos_protection_price}/mo</div>
+                    <div className="flex items-center gap-3">
+                      <Shield className="w-6 h-6 text-green-500" />
+                      <div>
+                        <div className="font-medium">DDoS Protection</div>
+                        <div className="text-xs text-dark-500">Enterprise-grade protection up to 10Tbps</div>
+                      </div>
+                      <div className="ml-auto text-sm font-medium">+${pricing.ddos_protection_price}/mo</div>
+                    </div>
                   </label>
-
-                  <label className={clsx(
-                    "p-4 rounded-xl border-2 cursor-pointer transition-all",
-                    customConfig.plesk
-                      ? "border-orange-500 bg-orange-50 dark:bg-orange-900/20"
-                      : "border-dark-200 dark:border-dark-700 hover:border-orange-500/50"
-                  )}>
-                    <input
-                      type="checkbox"
-                      checked={customConfig.plesk}
-                      onChange={(e) => updateConfig('plesk', e.target.checked)}
-                      className="hidden"
-                    />
-                    <Server className="w-6 h-6 text-orange-500 mb-2" />
-                    <div className="font-medium text-sm">Plesk Included</div>
-                    <div className="text-xs text-dark-500">+${pricing.plesk_price}/mo</div>
-                  </label>
-
-                  <label className={clsx(
-                    "p-4 rounded-xl border-2 cursor-pointer transition-all",
-                    customConfig.managed
-                      ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20"
-                      : "border-dark-200 dark:border-dark-700 hover:border-purple-500/50"
-                  )}>
-                    <input
-                      type="checkbox"
-                      checked={customConfig.managed}
-                      onChange={(e) => updateConfig('managed', e.target.checked)}
-                      className="hidden"
-                    />
-                    <Headphones className="w-6 h-6 text-purple-500 mb-2" />
-                    <div className="font-medium text-sm">Managed VPS</div>
-                    <div className="text-xs text-dark-500">+${pricing.managed_vps_price}/mo</div>
-                  </label>
-
-                  {/* SSL Included - Always Included */}
-                  <div className="p-4 rounded-xl border-2 border-green-500 bg-green-50 dark:bg-green-900/20">
-                    <Lock className="w-6 h-6 text-green-500 mb-2" />
-                    <div className="font-medium text-sm">SSL Included</div>
-                    <div className="text-xs text-green-600 font-semibold">FREE</div>
-                  </div>
                 </div>
 
-                {/* Always Included Features */}
-                <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-2xl border border-green-200 dark:border-green-800">
-                  <h4 className="font-semibold text-green-700 dark:text-green-400 mb-3 flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5" />
-                    Always Included
-                  </h4>
-                  <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                    <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                      <Headphones className="w-4 h-4" />
-                      <span>FREE 24/7 Technical Support</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                      <Star className="w-4 h-4" />
-                      <span>Personal Consultant</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                      <Lock className="w-4 h-4" />
-                      <span>SSL Certificate Included</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                      <Zap className="w-4 h-4" />
-                      <span>Instant Deployment</span>
-                    </div>
+                {/* Included Features (FREE) */}
+                <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-2xl">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                    <span className="font-medium text-green-700 dark:text-green-400">Included FREE</span>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {pricing.plesk_included && (
+                      <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+                        <Check className="w-4 h-4" />
+                        <span>Plesk Control Panel</span>
+                      </div>
+                    )}
+                    {pricing.managed_vps_included && (
+                      <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+                        <Check className="w-4 h-4" />
+                        <span>Managed VPS</span>
+                      </div>
+                    )}
+                    {pricing.ssl_included && (
+                      <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+                        <Check className="w-4 h-4" />
+                        <span>SSL Certificate</span>
+                      </div>
+                    )}
+                    {pricing.free_support_included && (
+                      <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+                        <Check className="w-4 h-4" />
+                        <span>FREE Technical Support</span>
+                      </div>
+                    )}
+                    {pricing.personal_consultant_included && (
+                      <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+                        <Check className="w-4 h-4" />
+                        <span>Personal Consultant</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -836,27 +793,7 @@ export default function VPS() {
                 <div className="sticky top-24 p-6 bg-gradient-to-br from-purple-500/10 to-blue-500/10 rounded-2xl border border-purple-500/20">
                   <h3 className="text-lg font-bold mb-4">Your Configuration</h3>
 
-                  <div className="space-y-3 mb-6">
-                    {/* Billing Period & Datacenter */}
-                    <div className="flex justify-between text-sm">
-                      <span className="text-dark-500">Billing</span>
-                      <span className="font-medium">
-                        {customConfig.billingPeriod === 'monthly' ? 'Monthly' :
-                          customConfig.billingPeriod === '1year' ? '1 Year' :
-                            customConfig.billingPeriod === '2years' ? '2 Years' : '3 Years'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-dark-500">Datacenter</span>
-                      <span className="font-medium">
-                        {(pricing.datacenters || []).find(d => d.id === customConfig.datacenter)?.flag}{' '}
-                        {(pricing.datacenters || []).find(d => d.id === customConfig.datacenter)?.name}
-                      </span>
-                    </div>
-
-                    <div className="border-t border-dark-200 dark:border-dark-700 pt-3 mt-3" />
-
-                    {/* Resources */}
+                  <div className="space-y-3 mb-4">
                     <div className="flex justify-between text-sm">
                       <span className="text-dark-500">{customConfig.cpu} vCPU</span>
                       <span>${(customConfig.cpu * pricing.cpu_price_per_core).toFixed(2)}</span>
@@ -873,71 +810,43 @@ export default function VPS() {
                       <span className="text-dark-500">{customConfig.bandwidth} TB Bandwidth</span>
                       <span>${(customConfig.bandwidth * pricing.bandwidth_price_per_tb).toFixed(2)}</span>
                     </div>
-
-                    {/* Add-ons */}
                     {customConfig.ddos && (
                       <div className="flex justify-between text-sm text-green-600">
                         <span>DDoS Protection</span>
                         <span>+${pricing.ddos_protection_price.toFixed(2)}</span>
                       </div>
                     )}
-                    {customConfig.plesk && (
-                      <div className="flex justify-between text-sm text-orange-600">
-                        <span>Plesk</span>
-                        <span>+${pricing.plesk_price.toFixed(2)}</span>
+                    {customConfig.backupGb > 0 && (
+                      <div className="flex justify-between text-sm text-indigo-600">
+                        <span>{customConfig.backupGb} GB Backups</span>
+                        <span>+${(customConfig.backupGb * (pricing.backup_price_per_gb || 0.05)).toFixed(2)}</span>
                       </div>
                     )}
-                    {customConfig.managed && (
-                      <div className="flex justify-between text-sm text-purple-600">
-                        <span>Managed VPS</span>
-                        <span>+${pricing.managed_vps_price.toFixed(2)}</span>
-                      </div>
-                    )}
-                    {customConfig.backupGB > 0 && (
-                      <div className="flex justify-between text-sm text-amber-600">
-                        <span>{customConfig.backupGB} GB Backups</span>
-                        <span>+${(customConfig.backupGB * pricing.backup_price_per_gb).toFixed(2)}</span>
-                      </div>
-                    )}
+                  </div>
 
-                    {/* Free Includes */}
-                    <div className="flex justify-between text-sm text-green-600">
-                      <span>SSL Certificate</span>
-                      <span>FREE</span>
-                    </div>
-                    <div className="flex justify-between text-sm text-green-600">
-                      <span>Technical Support</span>
-                      <span>FREE</span>
-                    </div>
+                  <div className="flex justify-between text-sm mb-2">
+                    <span className="text-dark-500">Datacenter</span>
+                    <span className="font-medium">{customConfig.datacenter}</span>
+                  </div>
+
+                  <div className="flex justify-between text-sm mb-4">
+                    <span className="text-dark-500">Billing</span>
+                    <span className="font-medium">
+                      {{ monthly: 'Monthly', '1_year': '1 Year', '2_years': '2 Years', '3_years': '3 Years' }[customConfig.billingPeriod]}
+                      {getBillingDiscount() > 0 && (
+                        <span className="text-green-600 ml-1">(-{getBillingDiscount()}%)</span>
+                      )}
+                    </span>
                   </div>
 
                   <div className="border-t border-dark-200 dark:border-dark-700 pt-4 mb-6">
-                    {(() => {
-                      const priceInfo = calculateCustomPrice()
-                      return (
-                        <>
-                          <div className="flex justify-between items-baseline">
-                            <span className="text-lg font-medium">Monthly</span>
-                            <div>
-                              <span className="text-3xl font-bold text-gradient">{format(priceInfo.monthly)}</span>
-                              <span className="text-dark-500">/mo</span>
-                            </div>
-                          </div>
-                          {priceInfo.discount > 0 && (
-                            <div className="mt-2 p-2 bg-green-100 dark:bg-green-900/30 rounded-lg text-center">
-                              <span className="text-green-700 dark:text-green-400 text-sm font-medium">
-                                You save {(priceInfo.discount * 100).toFixed(0)}% ({format(priceInfo.monthly * priceInfo.discount * priceInfo.months)} off)
-                              </span>
-                            </div>
-                          )}
-                          {priceInfo.months > 1 && (
-                            <div className="mt-2 text-sm text-dark-500 text-center">
-                              Total: {format(priceInfo.total)} for {priceInfo.months} months
-                            </div>
-                          )}
-                        </>
-                      )
-                    })()}
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-lg font-medium">Total</span>
+                      <div>
+                        <span className="text-3xl font-bold text-gradient">{format(calculateCustomPrice())}</span>
+                        <span className="text-dark-500">/mo</span>
+                      </div>
+                    </div>
                   </div>
 
                   <button
@@ -949,7 +858,7 @@ export default function VPS() {
                   </button>
 
                   <p className="text-xs text-dark-500 text-center mt-4">
-                    Instant deployment • Full root access • Personal consultant
+                    Instant deployment • Full root access
                   </p>
                 </div>
               </div>
