@@ -374,6 +374,32 @@ const templates = {
     `
   },
 
+  proposal_sent: {
+    subject: 'New Proposal: {{proposal_title}} - {{site_name}}',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
+          <h1 style="color: white; margin: 0;">New Proposal</h1>
+        </div>
+        <div style="padding: 40px; background: #f9fafb;">
+          <p>Hi {{user_name}},</p>
+          <p>You have received a new business proposal from {{site_name}}.</p>
+          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
+            <p><strong>Proposal:</strong> {{proposal_title}}</p>
+            <p><strong>Total:</strong> {{proposal_total}}</p>
+          </div>
+          <p>Please review the proposal and accept or reject it at your earliest convenience.</p>
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="{{proposal_link}}" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Proposal</a>
+          </p>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+          <p>© {{year}} {{site_name}}. All rights reserved.</p>
+        </div>
+      </div>
+    `
+  },
+
   newsletter_subscribe: {
     subject: 'Welcome to {{site_name}} Newsletter! 🎉',
     html: `

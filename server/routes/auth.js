@@ -559,7 +559,7 @@ router.post('/forgot-password', [
   try {
     const { email } = req.body;
 
-    const users = await db.query('SELECT id FROM users WHERE email = ?', [email]);
+    const users = await db.query('SELECT id, first_name, email FROM users WHERE email = ?', [email]);
 
     // Always return success to prevent email enumeration
     if (!users.length) {
@@ -574,7 +574,14 @@ router.post('/forgot-password', [
       WHERE id = ?
     `, [resetToken, expires, users[0].id]);
 
-    // TODO: Send email with reset link
+    // Send password reset email
+    try {
+      const emailService = require('../services/emailService');
+      const siteUrl = process.env.APP_URL || 'https://magnetic-clouds.com';
+      await emailService.sendPasswordReset(users[0], `${siteUrl}/reset-password?token=${resetToken}`);
+    } catch (emailErr) {
+      console.error('Failed to send password reset email:', emailErr.message);
+    }
 
     res.json({ message: 'If the email exists, a reset link has been sent' });
   } catch (error) {
