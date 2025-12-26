@@ -106,6 +106,7 @@ import AdminSecurity from './pages/admin/AdminSecurity'
 import AdminRoles from './pages/admin/AdminRoles'
 import AdminPageEditor from './pages/admin/AdminPageEditor'
 import AdminLogin from './pages/admin/AdminLogin'
+import AdminNewsletterSubscribers from './pages/admin/AdminNewsletterSubscribers'
 import ProposalView from './pages/ProposalView'
 
 // Protected Route wrapper
@@ -329,6 +330,7 @@ function App() {
           <Route path="invoices" element={<AdminInvoices />} />
           <Route path="nobot-services" element={<AdminNoBotServices />} />
           <Route path="email-logs" element={<AdminEmailLogs />} />
+          <Route path="newsletter" element={<AdminNewsletterSubscribers />} />
           <Route path="server-management" element={<AdminServerManagement />} />
           <Route path="security" element={<AdminSecurity />} />
           <Route path="roles" element={<AdminRoles />} />

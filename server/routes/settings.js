@@ -1124,4 +1124,179 @@ router.delete('/:key', authenticate, requireRole('admin'), async (req, res) => {
   }
 });
 
+// ============================================
+// NEWSLETTER SUBSCRIPTION ENDPOINTS
+// ============================================
+
+// Subscribe to newsletter (public)
+router.post('/newsletter/subscribe', async (req, res) => {
+  try {
+    const { email, source = 'footer' } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    // Get IP address
+    const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+    // Check if already subscribed
+    const existing = await db.query(
+      'SELECT id, status FROM newsletter_subscribers WHERE email = ?',
+      [email.toLowerCase()]
+    );
+
+    if (existing && existing.length > 0) {
+      if (existing[0].status === 'subscribed') {
+        return res.json({ message: 'Already subscribed!', alreadySubscribed: true });
+      }
+      // Re-subscribe
+      await db.query(
+        'UPDATE newsletter_subscribers SET status = ?, subscribed_at = NOW(), unsubscribed_at = NULL, ip_address = ?, source = ? WHERE email = ?',
+        ['subscribed', ipAddress, source, email.toLowerCase()]
+      );
+    } else {
+      // New subscription
+      await db.query(
+        'INSERT INTO newsletter_subscribers (email, status, ip_address, source) VALUES (?, ?, ?, ?)',
+        [email.toLowerCase(), 'subscribed', ipAddress, source]
+      );
+    }
+
+    // TODO: Send confirmation email via Mailgun if enabled
+
+    res.json({ message: 'Successfully subscribed!', success: true });
+  } catch (error) {
+    console.error('Newsletter subscribe error:', error);
+    res.status(500).json({ error: 'Failed to subscribe' });
+  }
+});
+
+// Unsubscribe from newsletter (public)
+router.post('/newsletter/unsubscribe', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    await db.query(
+      'UPDATE newsletter_subscribers SET status = ?, unsubscribed_at = NOW() WHERE email = ?',
+      ['unsubscribed', email.toLowerCase()]
+    );
+
+    res.json({ message: 'Successfully unsubscribed', success: true });
+  } catch (error) {
+    console.error('Newsletter unsubscribe error:', error);
+    res.status(500).json({ error: 'Failed to unsubscribe' });
+  }
+});
+
+// Get all subscribers (admin only)
+router.get('/newsletter/subscribers', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    const { status, page = 1, limit = 50, search } = req.query;
+
+    let query = 'SELECT * FROM newsletter_subscribers';
+    let countQuery = 'SELECT COUNT(*) as total FROM newsletter_subscribers';
+    const params = [];
+    const countParams = [];
+
+    const conditions = [];
+
+    if (status) {
+      conditions.push('status = ?');
+      params.push(status);
+      countParams.push(status);
+    }
+
+    if (search) {
+      conditions.push('email LIKE ?');
+      params.push(`%${search}%`);
+      countParams.push(`%${search}%`);
+    }
+
+    if (conditions.length > 0) {
+      const whereClause = ' WHERE ' + conditions.join(' AND ');
+      query += whereClause;
+      countQuery += whereClause;
+    }
+
+    // Get total count
+    const countResult = await db.query(countQuery, countParams);
+    const total = countResult[0]?.total || 0;
+
+    // Add pagination
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    params.push(parseInt(limit), offset);
+
+    const subscribers = await db.query(query, params);
+
+    res.json({
+      subscribers,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Get newsletter subscribers error:', error);
+    res.status(500).json({ error: 'Failed to load subscribers' });
+  }
+});
+
+// Delete subscriber (admin only)
+router.delete('/newsletter/subscribers/:id', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.query('DELETE FROM newsletter_subscribers WHERE id = ?', [id]);
+    res.json({ message: 'Subscriber deleted successfully' });
+  } catch (error) {
+    console.error('Delete subscriber error:', error);
+    res.status(500).json({ error: 'Failed to delete subscriber' });
+  }
+});
+
+// Export subscribers as CSV (admin only)
+router.get('/newsletter/export', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    let query = 'SELECT email, status, subscribed_at, source FROM newsletter_subscribers';
+    const params = [];
+
+    if (status) {
+      query += ' WHERE status = ?';
+      params.push(status);
+    }
+
+    query += ' ORDER BY subscribed_at DESC';
+
+    const subscribers = await db.query(query, params);
+
+    // Generate CSV
+    const csvHeader = 'Email,Status,Subscribed At,Source\n';
+    const csvRows = subscribers.map(s =>
+      `${s.email},${s.status},${s.subscribed_at || ''},${s.source}`
+    ).join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=newsletter_subscribers.csv');
+    res.send(csvHeader + csvRows);
+  } catch (error) {
+    console.error('Export subscribers error:', error);
+    res.status(500).json({ error: 'Failed to export subscribers' });
+  }
+});
+
 module.exports = router;

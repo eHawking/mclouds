@@ -12,10 +12,10 @@ const pool = mariadb.createPool({
 const migrations = [
   // Create database
   `CREATE DATABASE IF NOT EXISTS ${process.env.DB_NAME || 'magnetic_clouds'} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
-  
+
   // Use database
   `USE ${process.env.DB_NAME || 'magnetic_clouds'}`,
-  
+
   // Users table
   `CREATE TABLE IF NOT EXISTS users (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -49,7 +49,7 @@ const migrations = [
     INDEX idx_uuid (uuid),
     INDEX idx_role (role)
   )`,
-  
+
   // Product categories
   `CREATE TABLE IF NOT EXISTS product_categories (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -64,7 +64,7 @@ const migrations = [
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (parent_id) REFERENCES product_categories(id) ON DELETE SET NULL
   )`,
-  
+
   // Products table
   `CREATE TABLE IF NOT EXISTS products (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -97,7 +97,7 @@ const migrations = [
     INDEX idx_slug (slug),
     INDEX idx_active (is_active)
   )`,
-  
+
   // Domain TLDs
   `CREATE TABLE IF NOT EXISTS domain_tlds (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -114,7 +114,7 @@ const migrations = [
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   )`,
-  
+
   // Orders table
   `CREATE TABLE IF NOT EXISTS orders (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -142,7 +142,7 @@ const migrations = [
     INDEX idx_status (status),
     INDEX idx_order_number (order_number)
   )`,
-  
+
   // Order items
   `CREATE TABLE IF NOT EXISTS order_items (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -162,7 +162,7 @@ const migrations = [
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
   )`,
-  
+
   // Services (Active subscriptions)
   `CREATE TABLE IF NOT EXISTS services (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -194,7 +194,7 @@ const migrations = [
     INDEX idx_status (status),
     INDEX idx_type (service_type)
   )`,
-  
+
   // Support tickets
   `CREATE TABLE IF NOT EXISTS tickets (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -216,7 +216,7 @@ const migrations = [
     INDEX idx_user (user_id),
     INDEX idx_status (status)
   )`,
-  
+
   // Ticket replies
   `CREATE TABLE IF NOT EXISTS ticket_replies (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -229,7 +229,7 @@ const migrations = [
     FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   )`,
-  
+
   // Invoices
   `CREATE TABLE IF NOT EXISTS invoices (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -253,7 +253,7 @@ const migrations = [
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL,
     FOREIGN KEY (proposal_id) REFERENCES proposals(id) ON DELETE SET NULL
   )`,
-  
+
   // Transactions
   `CREATE TABLE IF NOT EXISTS transactions (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -273,7 +273,7 @@ const migrations = [
     FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE SET NULL,
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE SET NULL
   )`,
-  
+
   // Coupons
   `CREATE TABLE IF NOT EXISTS coupons (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -292,7 +292,7 @@ const migrations = [
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   )`,
-  
+
   // Site settings
   `CREATE TABLE IF NOT EXISTS settings (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -304,7 +304,7 @@ const migrations = [
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   )`,
-  
+
   // Pages (CMS)
   `CREATE TABLE IF NOT EXISTS pages (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -318,7 +318,7 @@ const migrations = [
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   )`,
-  
+
   // Translations
   `CREATE TABLE IF NOT EXISTS translations (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -330,7 +330,7 @@ const migrations = [
     UNIQUE KEY unique_translation (locale, translation_key),
     INDEX idx_locale (locale)
   )`,
-  
+
   // Datacenters
   `CREATE TABLE IF NOT EXISTS datacenters (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -347,7 +347,7 @@ const migrations = [
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   )`,
-  
+
   // Activity log
   `CREATE TABLE IF NOT EXISTS activity_logs (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -364,7 +364,7 @@ const migrations = [
     INDEX idx_action (action),
     INDEX idx_created (created_at)
   )`,
-  
+
   // Media library
   `CREATE TABLE IF NOT EXISTS media (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -380,7 +380,7 @@ const migrations = [
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
   )`,
-  
+
   // Announcements
   `CREATE TABLE IF NOT EXISTS announcements (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -395,7 +395,7 @@ const migrations = [
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   )`,
-  
+
   // Knowledgebase categories
   `CREATE TABLE IF NOT EXISTS kb_categories (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -410,7 +410,7 @@ const migrations = [
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (parent_id) REFERENCES kb_categories(id) ON DELETE SET NULL
   )`,
-  
+
   // Knowledgebase articles
   `CREATE TABLE IF NOT EXISTS kb_articles (
     id INT PRIMARY KEY AUTO_INCREMENT,
@@ -428,13 +428,13 @@ const migrations = [
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (category_id) REFERENCES kb_categories(id) ON DELETE SET NULL
   )`,
-  
+
   // OAuth provider columns for users table
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) DEFAULT NULL`,
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS github_id VARCHAR(255) DEFAULT NULL`,
   `CREATE INDEX IF NOT EXISTS idx_google_id ON users(google_id)`,
   `CREATE INDEX IF NOT EXISTS idx_github_id ON users(github_id)`,
-  
+
   // Proposals table
   `CREATE TABLE IF NOT EXISTS proposals (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -615,6 +615,20 @@ const migrations = [
     INDEX idx_type (type),
     INDEX idx_is_read (is_read),
     INDEX idx_created_at (created_at)
+  )`,
+
+  // Newsletter subscribers
+  `CREATE TABLE IF NOT EXISTS newsletter_subscribers (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    status ENUM('pending', 'subscribed', 'unsubscribed') DEFAULT 'subscribed',
+    subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    unsubscribed_at DATETIME,
+    ip_address VARCHAR(45),
+    source VARCHAR(50) DEFAULT 'footer',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_email (email),
+    INDEX idx_status (status)
   )`
 ];
 
@@ -623,13 +637,13 @@ async function runMigrations() {
   try {
     conn = await pool.getConnection();
     console.log('🔄 Running database migrations...\n');
-    
+
     for (let i = 0; i < migrations.length; i++) {
       const sql = migrations[i];
-      const tableName = sql.match(/CREATE TABLE IF NOT EXISTS (\w+)/)?.[1] || 
-                       sql.match(/CREATE DATABASE/)?.[0] || 
-                       sql.match(/USE (\w+)/)?.[1];
-      
+      const tableName = sql.match(/CREATE TABLE IF NOT EXISTS (\w+)/)?.[1] ||
+        sql.match(/CREATE DATABASE/)?.[0] ||
+        sql.match(/USE (\w+)/)?.[1];
+
       try {
         await conn.query(sql);
         console.log(`✅ ${tableName || `Migration ${i + 1}`}`);
@@ -641,7 +655,7 @@ async function runMigrations() {
         }
       }
     }
-    
+
     console.log('\n✅ All migrations completed successfully!');
   } catch (error) {
     console.error('❌ Migration failed:', error);

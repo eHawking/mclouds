@@ -2,14 +2,16 @@ import { useState, useEffect } from 'react'
 import { Helmet } from 'react-helmet-async'
 import {
   Save, Mail, Key, Eye, EyeOff, TestTube, CheckCircle, AlertCircle,
-  Send, Globe, Settings, Bell, ShoppingCart, Ticket, User, Lock
+  Send, Globe, Settings, Bell, ShoppingCart, Ticket, User, Lock, Newspaper
 } from 'lucide-react'
 import { settingsAPI } from '../../lib/api'
 import toast from 'react-hot-toast'
+import Switch from '../../components/ui/Switch'
 
 const emailEvents = [
   { key: 'welcome_email', label: 'Welcome Email', description: 'Sent when user registers', icon: User },
   { key: 'password_reset', label: 'Password Reset', description: 'Sent when user requests password reset', icon: Lock },
+  { key: 'newsletter_subscribe', label: 'Newsletter Subscription', description: 'Sent when user subscribes to newsletter', icon: Newspaper },
   { key: 'order_placed', label: 'Order Placed', description: 'Sent when a new order is placed', icon: ShoppingCart },
   { key: 'order_confirmed', label: 'Order Confirmed', description: 'Sent when order payment is confirmed', icon: CheckCircle },
   { key: 'order_processing', label: 'Order Processing', description: 'Sent when order is being processed', icon: Settings },
@@ -40,6 +42,7 @@ export default function AdminEmailSettings() {
     // Email event toggles
     welcome_email: true,
     password_reset: true,
+    newsletter_subscribe: true,
     order_placed: true,
     order_confirmed: true,
     order_processing: true,
@@ -138,15 +141,11 @@ export default function AdminEmailSettings() {
                 <p className="text-sm text-dark-500">Transactional email service</p>
               </div>
             </div>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={settings.mailgun_enabled}
-                onChange={(e) => setSettings(prev => ({ ...prev, mailgun_enabled: e.target.checked }))}
-                className="w-5 h-5 rounded text-primary-500"
-              />
-              <span className="font-medium">Enabled</span>
-            </label>
+            <Switch
+              checked={settings.mailgun_enabled}
+              onChange={(checked) => setSettings(prev => ({ ...prev, mailgun_enabled: checked }))}
+              label="Enabled"
+            />
           </div>
 
           {settings.mailgun_enabled && (
@@ -280,20 +279,14 @@ export default function AdminEmailSettings() {
 
           <div className="grid md:grid-cols-2 gap-4">
             {emailEvents.map((event) => (
-              <label
+              <div
                 key={event.key}
-                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${settings[event.key]
-                    ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                    : 'border-dark-200 dark:border-dark-700 hover:border-dark-300'
+                className={`p-4 rounded-xl border-2 transition-all ${settings[event.key]
+                  ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                  : 'border-dark-200 dark:border-dark-700'
                   }`}
               >
-                <div className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={settings[event.key]}
-                    onChange={(e) => setSettings(prev => ({ ...prev, [event.key]: e.target.checked }))}
-                    className="mt-1 w-4 h-4 rounded text-green-500"
-                  />
+                <div className="flex items-center justify-between gap-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <event.icon className="w-4 h-4 text-dark-500" />
@@ -301,8 +294,13 @@ export default function AdminEmailSettings() {
                     </div>
                     <p className="text-xs text-dark-500 mt-1">{event.description}</p>
                   </div>
+                  <Switch
+                    checked={settings[event.key]}
+                    onChange={(checked) => setSettings(prev => ({ ...prev, [event.key]: checked }))}
+                    size="sm"
+                  />
                 </div>
-              </label>
+              </div>
             ))}
           </div>
         </div>

@@ -155,12 +155,36 @@ export default function Footer() {
   const showNewsletter = footerSettings?.showNewsletter !== false
   const newsletterTitle = footerSettings?.newsletterTitle || 'Subscribe to Newsletter'
   const newsletterText = footerSettings?.newsletterText || 'Get the latest updates and offers'
+  const [subscribing, setSubscribing] = useState(false)
 
-  const handleSubscribe = (e) => {
+  const handleSubscribe = async (e) => {
     e.preventDefault()
-    if (!email) return
-    toast.success('Thank you for subscribing!')
-    setEmail('')
+    if (!email || subscribing) return
+
+    setSubscribing(true)
+    try {
+      const res = await fetch('/api/settings/newsletter/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, source: 'footer' })
+      })
+      const data = await res.json()
+
+      if (res.ok) {
+        if (data.alreadySubscribed) {
+          toast.success('You are already subscribed!')
+        } else {
+          toast.success('Thank you for subscribing!')
+        }
+        setEmail('')
+      } else {
+        toast.error(data.error || 'Failed to subscribe')
+      }
+    } catch (err) {
+      toast.error('Failed to subscribe. Please try again.')
+    } finally {
+      setSubscribing(false)
+    }
   }
 
   return (
@@ -191,9 +215,10 @@ export default function Footer() {
                 </div>
                 <button
                   type="submit"
-                  className="px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 rounded-xl font-semibold transition-all flex items-center gap-2"
+                  disabled={subscribing}
+                  className="px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 rounded-xl font-semibold transition-all flex items-center gap-2 disabled:opacity-50"
                 >
-                  Subscribe
+                  {subscribing ? 'Subscribing...' : 'Subscribe'}
                   <Send className="w-4 h-4" />
                 </button>
               </form>
