@@ -405,36 +405,84 @@ const templates = {
     html: `
       <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #1a1a2e;">
         <div style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%); padding: 50px 40px; text-align: center; border-radius: 0 0 50px 50px;">
-          <div style="width: 80px; height: 80px; background: rgba(255,255,255,0.2); border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
-            <span style="font-size: 40px;">📧</span>
-          </div>
-          <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">You're Subscribed!</h1>
-          <p style="color: rgba(255,255,255,0.9); margin-top: 10px; font-size: 16px;">Welcome to the {{site_name}} newsletter</p>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td align="center">
+                <div style="width: 80px; height: 80px; background: rgba(255,255,255,0.2); border-radius: 50%; margin: 0 auto 20px; line-height: 80px;">
+                  <span style="font-size: 40px;">📧</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td align="center">
+                <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">You're Subscribed!</h1>
+                <p style="color: rgba(255,255,255,0.9); margin-top: 10px; font-size: 16px;">Welcome to the {{site_name}} newsletter</p>
+              </td>
+            </tr>
+          </table>
         </div>
         <div style="padding: 40px; background: #ffffff; margin: 0 20px; border-radius: 20px; transform: translateY(-30px); box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi there! 👋</p>
           <p style="color: #374151; font-size: 16px; line-height: 1.6;">Thank you for subscribing to our newsletter. You'll now receive:</p>
           <div style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border-radius: 12px; padding: 20px; margin: 25px 0;">
-            <div style="display: flex; align-items: center; margin-bottom: 12px;">
-              <span style="width: 24px; height: 24px; background: #10b981; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-right: 12px;"><span style="color: white; font-size: 14px;">✓</span></span>
-              <span style="color: #374151;">Exclusive deals & promotions</span>
-            </div>
-            <div style="display: flex; align-items: center; margin-bottom: 12px;">
-              <span style="width: 24px; height: 24px; background: #10b981; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-right: 12px;"><span style="color: white; font-size: 14px;">✓</span></span>
-              <span style="color: #374151;">New product announcements</span>
-            </div>
-            <div style="display: flex; align-items: center; margin-bottom: 12px;">
-              <span style="width: 24px; height: 24px; background: #10b981; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-right: 12px;"><span style="color: white; font-size: 14px;">✓</span></span>
-              <span style="color: #374151;">Tips & tutorials</span>
-            </div>
-            <div style="display: flex; align-items: center;">
-              <span style="width: 24px; height: 24px; background: #10b981; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-right: 12px;"><span style="color: white; font-size: 14px;">✓</span></span>
-              <span style="color: #374151;">Industry news & updates</span>
-            </div>
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="padding: 8px 0;">
+                  <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="width: 32px; vertical-align: middle;">
+                        <div style="width: 24px; height: 24px; background: #10b981; border-radius: 50%; text-align: center; line-height: 24px;"><span style="color: white; font-size: 14px;">✓</span></div>
+                      </td>
+                      <td style="vertical-align: middle; color: #374151;">Exclusive deals & promotions</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0;">
+                  <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="width: 32px; vertical-align: middle;">
+                        <div style="width: 24px; height: 24px; background: #10b981; border-radius: 50%; text-align: center; line-height: 24px;"><span style="color: white; font-size: 14px;">✓</span></div>
+                      </td>
+                      <td style="vertical-align: middle; color: #374151;">New product announcements</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0;">
+                  <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="width: 32px; vertical-align: middle;">
+                        <div style="width: 24px; height: 24px; background: #10b981; border-radius: 50%; text-align: center; line-height: 24px;"><span style="color: white; font-size: 14px;">✓</span></div>
+                      </td>
+                      <td style="vertical-align: middle; color: #374151;">Tips & tutorials</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0;">
+                  <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="width: 32px; vertical-align: middle;">
+                        <div style="width: 24px; height: 24px; background: #10b981; border-radius: 50%; text-align: center; line-height: 24px;"><span style="color: white; font-size: 14px;">✓</span></div>
+                      </td>
+                      <td style="vertical-align: middle; color: #374151;">Industry news & updates</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
           </div>
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="{{site_url}}" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 14px 40px; text-decoration: none; border-radius: 30px; display: inline-block; font-weight: 600; box-shadow: 0 4px 15px rgba(99,102,241,0.4);">Explore Our Services</a>
-          </p>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td align="center" style="padding-top: 20px;">
+                <a href="{{site_url}}" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 14px 40px; text-decoration: none; border-radius: 30px; display: inline-block; font-weight: 600;">Explore Our Services</a>
+              </td>
+            </tr>
+          </table>
         </div>
         <div style="padding: 30px; text-align: center; color: #9ca3af;">
           <p style="font-size: 12px; margin: 0;">© {{year}} {{site_name}}. All rights reserved.</p>
@@ -599,23 +647,14 @@ class EmailService {
       subject = this.replaceVariables(templateSubject, allVariables);
       html = this.replaceVariables(templateHtml, allVariables);
 
-      // If logo exists, add it at the very top of the email with premium styling
+      // If logo exists, add it INSIDE the first gradient header div (after the opening tag)
       if (emailLogo) {
-        const logoHeader = `
-          <div style="text-align: center; padding: 25px 20px; background: linear-gradient(135deg, #1f2937, #111827);">
-            <img src="${emailLogo}" alt="${allVariables.site_name}" style="max-width: 180px; max-height: 50px; object-fit: contain;" />
-          </div>
-        `;
-        // Insert logo at the very beginning of the email body
-        if (html.includes('<div style="font-family:')) {
-          html = html.replace('<div style="font-family:', logoHeader + '<div style="font-family:');
-        } else if (html.includes('<div')) {
-          // Insert after first opening tag
-          const firstDivIndex = html.indexOf('<div');
-          const insertPoint = html.indexOf('>', firstDivIndex) + 1;
-          html = html.slice(0, insertPoint) + logoHeader + html.slice(insertPoint);
-        } else {
-          html = logoHeader + html;
+        const logoHtml = `<div style="margin-bottom: 15px;"><img src="${emailLogo}" alt="${allVariables.site_name}" style="max-width: 150px; max-height: 45px; object-fit: contain;" /></div>`;
+
+        // Find the gradient div and insert logo inside it at the beginning
+        const gradientMatch = html.match(/(<div[^>]*background:\s*linear-gradient[^>]*>)/i);
+        if (gradientMatch) {
+          html = html.replace(gradientMatch[0], gradientMatch[0] + logoHtml);
         }
       }
 
