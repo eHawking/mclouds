@@ -645,7 +645,12 @@ const migrations = [
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_template_key (template_key),
     INDEX idx_is_active (is_active)
-  )`
+  )`,
+
+  // Add missing columns to newsletter_subscribers if they don't exist
+  `ALTER TABLE newsletter_subscribers ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`,
+  `ALTER TABLE newsletter_subscribers ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'footer'`,
+  `ALTER TABLE newsletter_subscribers ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45)`
 ];
 
 async function runMigrations() {
@@ -657,6 +662,7 @@ async function runMigrations() {
     for (let i = 0; i < migrations.length; i++) {
       const sql = migrations[i];
       const tableName = sql.match(/CREATE TABLE IF NOT EXISTS (\w+)/)?.[1] ||
+        sql.match(/ALTER TABLE (\w+)/)?.[1] ||
         sql.match(/CREATE DATABASE/)?.[0] ||
         sql.match(/USE (\w+)/)?.[1];
 
@@ -666,6 +672,10 @@ async function runMigrations() {
       } catch (error) {
         if (error.code === 'ER_TABLE_EXISTS_ERROR') {
           console.log(`⏭️  ${tableName} already exists`);
+        } else if (error.code === 'ER_DUP_FIELDNAME') {
+          console.log(`⏭️  ${tableName} column already exists`);
+        } else if (error.code === 'ER_NO_SUCH_TABLE') {
+          console.log(`⏭️  ${tableName} table not found (skipping ALTER)`);
         } else {
           throw error;
         }
