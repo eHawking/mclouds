@@ -1,10 +1,24 @@
-require('dotenv').config({ path: '../.env' });
+const path = require('path');
+const envPath = path.join(__dirname, '../../.env');
+require('dotenv').config({ path: envPath });
+
 const mariadb = require('mariadb');
 
+// Validate required environment variables
+if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_NAME) {
+  console.error('❌ Missing database configuration in .env file');
+  console.error('   Looking for .env at:', envPath);
+  console.error('   Required: DB_HOST, DB_USER, DB_NAME, DB_PASSWORD');
+  process.exit(1);
+}
+
+console.log('📁 Loading .env from:', envPath);
+console.log('🔌 Connecting to database:', process.env.DB_NAME, '@', process.env.DB_HOST);
+
 const pool = mariadb.createPool({
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.DB_HOST,
   port: parseInt(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'root',
+  user: process.env.DB_USER,
   password: process.env.DB_PASSWORD || '',
   connectionLimit: 5
 });

@@ -1,4 +1,5 @@
-require('dotenv').config({ path: '../.env' });
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const db = require('./connection');
@@ -331,7 +332,7 @@ async function seed() {
     console.log('\n📧 Admin Login:');
     console.log(`   Email: ${process.env.ADMIN_EMAIL || 'admin@magneticclouds.com'}`);
     console.log(`   Password: ${process.env.ADMIN_PASSWORD || 'Admin@123456'}`);
-    
+
     process.exit(0);
   } catch (error) {
     console.error('❌ Seeding failed:', error);
