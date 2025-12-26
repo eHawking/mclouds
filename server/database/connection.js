@@ -15,30 +15,65 @@ const pool = mariadb.createPool({
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'magnetic_clouds',
-  connectionLimit: 10,
+  connectionLimit: 20,             // Increased from 10
   acquireTimeout: 30000,
-  connectTimeout: 30000
+  connectTimeout: 30000,
+  idleTimeout: 60000,              // Close idle connections after 60s
+  minimumIdle: 2,                  // Keep at least 2 connections ready
+  resetAfterUse: true,             // Reset connection state after use
+  leakDetectionTimeout: 60000      // Detect leaked connections
 });
 
-async function query(sql, params) {
-  let conn;
+// Keep connections alive with a ping every 30 seconds
+setInterval(async () => {
   try {
-    conn = await pool.getConnection();
-    const result = await conn.query(sql, params);
-    return result;
+    await pool.query('SELECT 1');
   } catch (error) {
-    // Add more context to database errors
-    if (error.code === 'ER_ACCESS_DENIED_ERROR') {
-      console.error('❌ Database access denied. Check DB_USER and DB_PASSWORD in .env');
-    } else if (error.code === 'ER_BAD_DB_ERROR') {
-      console.error('❌ Database does not exist. Run migrations first: node server/database/migrate.js');
-    } else if (error.code === 'ECONNREFUSED') {
-      console.error('❌ Cannot connect to database server. Check DB_HOST and DB_PORT.');
-    }
-    throw error;
-  } finally {
-    if (conn) conn.release();
+    console.error('Database keep-alive ping failed:', error.message);
   }
+}, 30000);
+
+async function query(sql, params, retries = 2) {
+  let conn;
+  let lastError;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      conn = await pool.getConnection();
+      const result = await conn.query(sql, params);
+      return result;
+    } catch (error) {
+      lastError = error;
+      console.error(`Database query error (attempt ${attempt + 1}):`, error.code || error.message);
+
+      // Add more context to database errors
+      if (error.code === 'ER_ACCESS_DENIED_ERROR') {
+        console.error('❌ Database access denied. Check DB_USER and DB_PASSWORD in .env');
+        throw error; // Don't retry auth errors
+      } else if (error.code === 'ER_BAD_DB_ERROR') {
+        console.error('❌ Database does not exist. Run migrations first.');
+        throw error; // Don't retry DB errors
+      } else if (error.code === 'ECONNREFUSED' || error.code === 'PROTOCOL_CONNECTION_LOST' ||
+        error.code === 'ER_CON_COUNT_ERROR' || error.code === 'ETIMEDOUT') {
+        // These errors can be retried
+        if (attempt < retries) {
+          console.log(`Retrying database query in ${(attempt + 1) * 500}ms...`);
+          await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 500));
+          continue;
+        }
+      }
+      throw error;
+    } finally {
+      if (conn) {
+        try {
+          conn.release();
+        } catch (e) {
+          console.error('Error releasing connection:', e.message);
+        }
+      }
+    }
+  }
+  throw lastError;
 }
 
 async function testConnection() {

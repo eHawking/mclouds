@@ -1,15 +1,16 @@
 import { Helmet } from 'react-helmet-async'
 import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
-import { 
-  Users, ShoppingCart, DollarSign, Ticket, Server, TrendingUp, 
+import {
+  Users, ShoppingCart, DollarSign, Ticket, Server, TrendingUp,
   ArrowUpRight, ArrowDownRight, Sparkles, Activity, Clock,
-  CheckCircle, AlertCircle, Zap
+  CheckCircle, AlertCircle, Zap, RefreshCw
 } from 'lucide-react'
 import { adminAPI } from '../../lib/api'
 import { useCurrencyStore, useThemeStore } from '../../store/useStore'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 import clsx from 'clsx'
+import toast from 'react-hot-toast'
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -27,9 +28,18 @@ export default function AdminDashboard() {
   const { format } = useCurrencyStore()
   const { themeStyle } = useThemeStore()
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ['admin-dashboard'],
-    queryFn: () => adminAPI.getDashboard().then(res => res.data)
+    queryFn: () => adminAPI.getDashboard().then(res => res.data),
+    retry: 3,                      // Retry 3 times on failure
+    retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 5000),
+    refetchOnWindowFocus: true,    // Refetch when window regains focus
+    staleTime: 30000,              // Consider data stale after 30s
+    refetchInterval: 60000,        // Auto-refetch every 60s
+    onError: (error) => {
+      console.error('Dashboard fetch error:', error)
+      toast.error('Failed to load dashboard data')
+    }
   })
 
   const stats = [
@@ -44,7 +54,7 @@ export default function AdminDashboard() {
   return (
     <>
       <Helmet><title>Admin Dashboard - Magnetic Clouds</title></Helmet>
-      
+
       {/* Header */}
       <div className="relative mb-8 overflow-hidden rounded-3xl">
         {/* Animated Background */}
@@ -59,7 +69,7 @@ export default function AdminDashboard() {
             backgroundSize: '20px 20px'
           }} />
         </div>
-        
+
         <div className="relative p-8 flex items-center justify-between">
           <div>
             <div className="flex items-center gap-3 mb-2">
@@ -97,7 +107,7 @@ export default function AdminDashboard() {
           >
             {/* Background Gradient */}
             <div className={clsx("absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-opacity duration-300", stat.bgColor)} />
-            
+
             <div className="relative flex items-start justify-between">
               <div className="flex-1">
                 <p className="text-dark-500 dark:text-dark-400 text-sm font-medium">{stat.label}</p>
@@ -146,20 +156,20 @@ export default function AdminDashboard() {
               <AreaChart data={data.revenueChart}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" opacity={0.3} />
                 <XAxis dataKey="month" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
                 <Tooltip content={<CustomTooltip />} />
-                <Area 
-                  type="monotone" 
-                  dataKey="revenue" 
-                  stroke="#6366f1" 
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="#6366f1"
                   strokeWidth={3}
-                  fill="url(#colorRevenue)" 
+                  fill="url(#colorRevenue)"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -259,8 +269,8 @@ export default function AdminDashboard() {
                 <div className="flex items-center gap-3">
                   <div className={clsx(
                     "w-10 h-10 rounded-full flex items-center justify-center",
-                    ticket.status === 'open' ? "bg-amber-100 dark:bg-amber-900/30" : 
-                    ticket.status === 'closed' ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-blue-100 dark:bg-blue-900/30"
+                    ticket.status === 'open' ? "bg-amber-100 dark:bg-amber-900/30" :
+                      ticket.status === 'closed' ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-blue-100 dark:bg-blue-900/30"
                   )}>
                     {ticket.status === 'open' ? (
                       <AlertCircle className="w-5 h-5 text-amber-500" />
@@ -278,8 +288,8 @@ export default function AdminDashboard() {
                 <span className={clsx(
                   "px-2.5 py-1 text-xs font-medium rounded-lg capitalize",
                   ticket.status === 'open' ? "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400" :
-                  ticket.status === 'closed' ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400" :
-                  "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                    ticket.status === 'closed' ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400" :
+                      "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
                 )}>
                   {ticket.status}
                 </span>
