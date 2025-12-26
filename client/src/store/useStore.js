@@ -9,8 +9,8 @@ export const useThemeStore = create(
       themeStyle: 'gradient', // 'gradient' or 'flat'
       setTheme: (theme) => set({ theme }),
       setThemeStyle: (style) => set({ themeStyle: style }),
-      toggleTheme: () => set((state) => ({ 
-        theme: state.theme === 'light' ? 'dark' : 'light' 
+      toggleTheme: () => set((state) => ({
+        theme: state.theme === 'light' ? 'dark' : 'light'
       }))
     }),
     {
@@ -26,20 +26,20 @@ export const useAuthStore = create(
       user: null,
       token: null,
       isAuthenticated: false,
-      setUser: (user, token) => set({ 
-        user, 
-        token, 
-        isAuthenticated: !!user 
+      setUser: (user, token) => set({
+        user,
+        token,
+        isAuthenticated: !!user
       }),
-      login: (user, token) => set({ 
-        user, 
-        token, 
-        isAuthenticated: !!user 
+      login: (user, token) => set({
+        user,
+        token,
+        isAuthenticated: !!user
       }),
-      logout: () => set({ 
-        user: null, 
-        token: null, 
-        isAuthenticated: false 
+      logout: () => set({
+        user: null,
+        token: null,
+        isAuthenticated: false
       }),
       updateUser: (data) => set((state) => ({
         user: { ...state.user, ...data }
@@ -185,11 +185,11 @@ export const useSiteSettingsStore = create(
       setSiteSettings: (data) => set({ ...data, loaded: true }),
       updateSiteSetting: (key, value) => set({ [key]: value }),
       setPartnerLogos: (logos) => set({ partnerLogos: logos }),
-      addPartnerLogo: (logo) => set((state) => ({ 
-        partnerLogos: [...state.partnerLogos, logo] 
+      addPartnerLogo: (logo) => set((state) => ({
+        partnerLogos: [...state.partnerLogos, logo]
       })),
-      removePartnerLogo: (index) => set((state) => ({ 
-        partnerLogos: state.partnerLogos.filter((_, i) => i !== index) 
+      removePartnerLogo: (index) => set((state) => ({
+        partnerLogos: state.partnerLogos.filter((_, i) => i !== index)
       }))
     }),
     {
@@ -199,19 +199,25 @@ export const useSiteSettingsStore = create(
 )
 
 // Header & Footer Settings store (dynamic settings from admin)
+// Uses persist to prevent flash of default content on page load
 export const useHeaderFooterStore = create(
-  (set) => ({
-    headerSettings: null,
-    footerSettings: null,
-    loaded: false,
-    setHeaderSettings: (settings) => set({ headerSettings: settings }),
-    setFooterSettings: (settings) => set({ footerSettings: settings }),
-    setSettings: (header, footer) => set({ 
-      headerSettings: header, 
-      footerSettings: footer, 
-      loaded: true 
-    })
-  })
+  persist(
+    (set) => ({
+      headerSettings: null,
+      footerSettings: null,
+      loaded: false,
+      setHeaderSettings: (settings) => set({ headerSettings: settings }),
+      setFooterSettings: (settings) => set({ footerSettings: settings }),
+      setSettings: (header, footer) => set({
+        headerSettings: header,
+        footerSettings: footer,
+        loaded: true
+      })
+    }),
+    {
+      name: 'magnetic-header-footer'
+    }
+  )
 )
 
 
