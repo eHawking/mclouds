@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Users, Package, ShoppingCart, Ticket,
   Globe, Settings, FileText, Image, LogOut, Menu, X,
   Moon, Sun, Bell, ChevronDown, ChevronRight, Bot, MessageSquare, DollarSign, CreditCard, Sliders, Mail, Send, Receipt,
-  Check, CheckCheck, ShoppingBag, CreditCard as PaymentIcon, AlertCircle, User, Server, Shield
+  Check, CheckCheck, ShoppingBag, CreditCard as PaymentIcon, AlertCircle, User, Server, Shield, Newspaper
 } from 'lucide-react'
 import { useAuthStore, useThemeStore } from '../store/useStore'
 import { settingsAPI, adminAPI } from '../lib/api'
@@ -53,6 +53,7 @@ const menuGroups = [
       { to: '/admin/server-management', icon: Server, label: 'Server Management' },
       { to: '/admin/email-settings', icon: Mail, label: 'Email Settings' },
       { to: '/admin/email-logs', icon: Mail, label: 'Email Logs' },
+      { to: '/admin/newsletter', icon: Newspaper, label: 'Newsletter' },
       { to: '/admin/security', icon: Shield, label: 'Security' },
       { to: '/admin/roles', icon: Shield, label: 'Roles & Permissions' },
       { to: '/admin/nobot-services', icon: Bot, label: 'NoBot Services' },
