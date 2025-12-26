@@ -39,13 +39,17 @@ app.use(helmet({
 // Rate limiting
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 500, // Increased from 100 to 500
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000, // Increased to 1000
   message: { error: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => {
-    // Skip rate limiting for admin authenticated routes
-    return req.headers.authorization && req.path.startsWith('/api/settings');
+    // Skip rate limiting for auth and admin routes
+    const path = req.path.toLowerCase();
+    if (path.startsWith('/api/auth')) return true;
+    if (path.startsWith('/api/admin')) return true;
+    if (req.headers.authorization && path.startsWith('/api/settings')) return true;
+    return false;
   }
 });
 app.use('/api/', limiter);
