@@ -52,6 +52,7 @@ const menuGroups = [
       { to: '/admin/pages', icon: FileText, label: 'Pages' },
       { to: '/admin/server-management', icon: Server, label: 'Server Management' },
       { to: '/admin/email-settings', icon: Mail, label: 'Email Settings' },
+      { to: '/admin/email-templates', icon: Mail, label: 'Email Templates' },
       { to: '/admin/email-logs', icon: Mail, label: 'Email Logs' },
       { to: '/admin/newsletter', icon: Newspaper, label: 'Newsletter' },
       { to: '/admin/security', icon: Shield, label: 'Security' },

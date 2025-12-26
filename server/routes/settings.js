@@ -1091,6 +1091,279 @@ router.put('/header-footer', authenticate, requireRole('admin'), async (req, res
 });
 
 // ============================================
+// EMAIL TEMPLATES ENDPOINTS
+// ============================================
+
+// Default templates (used when no custom template exists)
+const defaultTemplates = {
+  welcome_email: {
+    name: 'Welcome Email',
+    description: 'Sent when a new user registers',
+    subject: 'Welcome to {{site_name}}!',
+    variables: ['user_name', 'site_name', 'site_url']
+  },
+  password_reset: {
+    name: 'Password Reset',
+    description: 'Sent when user requests password reset',
+    subject: 'Reset Your Password - {{site_name}}',
+    variables: ['user_name', 'reset_link', 'site_name']
+  },
+  newsletter_subscribe: {
+    name: 'Newsletter Confirmation',
+    description: 'Sent when user subscribes to newsletter',
+    subject: 'Welcome to {{site_name}} Newsletter! 🎉',
+    variables: ['site_name', 'site_url', 'email']
+  },
+  order_placed: {
+    name: 'Order Placed',
+    description: 'Sent when order is placed',
+    subject: 'Order Confirmation #{{order_id}} - {{site_name}}',
+    variables: ['user_name', 'order_id', 'order_date', 'order_total', 'payment_status', 'order_items']
+  },
+  order_confirmed: {
+    name: 'Payment Confirmed',
+    description: 'Sent when payment is confirmed',
+    subject: 'Payment Confirmed - Order #{{order_id}} - {{site_name}}',
+    variables: ['user_name', 'order_id', 'order_total']
+  },
+  order_completed: {
+    name: 'Service Activated',
+    description: 'Sent when services are activated',
+    subject: 'Your Service is Active - Order #{{order_id}} - {{site_name}}',
+    variables: ['user_name', 'order_id']
+  },
+  order_cancelled: {
+    name: 'Order Cancelled',
+    description: 'Sent when order is cancelled',
+    subject: 'Order Cancelled - #{{order_id}} - {{site_name}}',
+    variables: ['user_name', 'order_id']
+  },
+  ticket_created: {
+    name: 'Ticket Created',
+    description: 'Sent when support ticket is created',
+    subject: 'Ticket Created #{{ticket_id}} - {{site_name}}',
+    variables: ['user_name', 'ticket_id', 'ticket_subject', 'ticket_priority']
+  },
+  ticket_replied: {
+    name: 'Ticket Reply',
+    description: 'Sent when ticket receives a reply',
+    subject: 'New Reply on Ticket #{{ticket_id}} - {{site_name}}',
+    variables: ['user_name', 'ticket_id', 'ticket_subject', 'reply_from', 'reply_message']
+  },
+  ticket_closed: {
+    name: 'Ticket Resolved',
+    description: 'Sent when ticket is closed',
+    subject: 'Ticket Closed #{{ticket_id}} - {{site_name}}',
+    variables: ['user_name', 'ticket_id']
+  },
+  invoice_generated: {
+    name: 'New Invoice',
+    description: 'Sent when invoice is generated',
+    subject: 'New Invoice #{{invoice_id}} - {{site_name}}',
+    variables: ['user_name', 'invoice_id', 'invoice_amount', 'due_date']
+  },
+  payment_received: {
+    name: 'Payment Received',
+    description: 'Sent when payment is received',
+    subject: 'Payment Received - {{site_name}}',
+    variables: ['user_name', 'payment_amount', 'invoice_id', 'payment_date']
+  },
+  service_expiring: {
+    name: 'Service Expiring',
+    description: 'Sent when service is about to expire',
+    subject: 'Service Expiring Soon - {{site_name}}',
+    variables: ['user_name', 'service_name', 'expiry_date']
+  },
+  service_suspended: {
+    name: 'Service Suspended',
+    description: 'Sent when service is suspended',
+    subject: 'Service Suspended - {{site_name}}',
+    variables: ['user_name', 'service_name']
+  },
+  proposal_sent: {
+    name: 'Proposal Sent',
+    description: 'Sent when admin sends a proposal',
+    subject: 'New Proposal: {{proposal_title}} - {{site_name}}',
+    variables: ['user_name', 'proposal_title', 'proposal_total', 'proposal_link']
+  },
+  admin_new_order: {
+    name: 'Admin: New Order',
+    description: 'Sent to admins when new order is placed',
+    subject: 'New Order Received #{{order_id}} - {{site_name}}',
+    variables: ['order_id', 'user_name', 'user_email', 'order_total', 'payment_method']
+  },
+  admin_new_ticket: {
+    name: 'Admin: New Ticket',
+    description: 'Sent to admins when new ticket is created',
+    subject: 'New Support Ticket #{{ticket_id}} - {{site_name}}',
+    variables: ['ticket_id', 'user_name', 'user_email', 'ticket_subject', 'ticket_priority']
+  },
+  test_email: {
+    name: 'Test Email',
+    description: 'Used for testing email configuration',
+    subject: 'Test Email - {{site_name}}',
+    variables: ['site_name', 'timestamp']
+  }
+};
+
+// Get all email templates (admin only)
+router.get('/email-templates', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    // Get custom templates from database
+    const customTemplates = await db.query('SELECT * FROM email_templates ORDER BY name');
+
+    // Merge with defaults
+    const templates = Object.entries(defaultTemplates).map(([key, defaults]) => {
+      const custom = customTemplates.find(t => t.template_key === key);
+      return {
+        template_key: key,
+        name: defaults.name,
+        description: defaults.description,
+        subject: custom?.subject || defaults.subject,
+        html_content: custom?.html_content || null,
+        is_active: custom?.is_active ?? true,
+        is_customized: !!custom,
+        variables: defaults.variables,
+        updated_at: custom?.updated_at || null
+      };
+    });
+
+    res.json({ templates });
+  } catch (error) {
+    console.error('Get email templates error:', error);
+    res.status(500).json({ error: 'Failed to load email templates' });
+  }
+});
+
+// Get single email template (admin only)
+router.get('/email-templates/:key', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    const { key } = req.params;
+
+    // Get default template info
+    const defaults = defaultTemplates[key];
+    if (!defaults) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+
+    // Get custom template from database
+    const customTemplates = await db.query(
+      'SELECT * FROM email_templates WHERE template_key = ?',
+      [key]
+    );
+    const custom = customTemplates[0];
+
+    // Get email logo
+    const logoResult = await db.query(
+      "SELECT setting_value FROM settings WHERE setting_key = 'email_logo'"
+    );
+    const emailLogo = logoResult[0]?.setting_value || null;
+
+    // Get the default HTML from emailService
+    const emailService = require('../services/emailService');
+    const defaultHtml = emailService.getDefaultTemplate(key);
+
+    res.json({
+      template: {
+        template_key: key,
+        name: defaults.name,
+        description: defaults.description,
+        subject: custom?.subject || defaults.subject,
+        html_content: custom?.html_content || defaultHtml,
+        is_active: custom?.is_active ?? true,
+        is_customized: !!custom,
+        variables: defaults.variables,
+        email_logo: emailLogo
+      },
+      defaultSubject: defaults.subject,
+      defaultHtml: defaultHtml
+    });
+  } catch (error) {
+    console.error('Get email template error:', error);
+    res.status(500).json({ error: 'Failed to load email template' });
+  }
+});
+
+// Update email template (admin only)
+router.put('/email-templates/:key', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    const { key } = req.params;
+    const { subject, html_content, is_active } = req.body;
+
+    const defaults = defaultTemplates[key];
+    if (!defaults) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+
+    // Upsert template
+    await db.query(`
+      INSERT INTO email_templates (template_key, name, description, subject, html_content, is_active)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        subject = VALUES(subject),
+        html_content = VALUES(html_content),
+        is_active = VALUES(is_active),
+        updated_at = NOW()
+    `, [key, defaults.name, defaults.description, subject, html_content, is_active ?? true]);
+
+    res.json({ message: 'Template updated successfully' });
+  } catch (error) {
+    console.error('Update email template error:', error);
+    res.status(500).json({ error: 'Failed to update email template' });
+  }
+});
+
+// Reset email template to default (admin only)
+router.post('/email-templates/:key/reset', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    const { key } = req.params;
+
+    await db.query('DELETE FROM email_templates WHERE template_key = ?', [key]);
+
+    res.json({ message: 'Template reset to default' });
+  } catch (error) {
+    console.error('Reset email template error:', error);
+    res.status(500).json({ error: 'Failed to reset email template' });
+  }
+});
+
+// Upload/save email logo (admin only)
+router.post('/email-logo', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    const { logo } = req.body;
+
+    if (!logo) {
+      return res.status(400).json({ error: 'Logo is required' });
+    }
+
+    // Save to settings
+    await db.query(`
+      INSERT INTO settings (setting_key, setting_value, setting_type, category, is_public)
+      VALUES ('email_logo', ?, 'string', 'email', FALSE)
+      ON DUPLICATE KEY UPDATE setting_value = ?
+    `, [logo, logo]);
+
+    res.json({ message: 'Email logo saved successfully' });
+  } catch (error) {
+    console.error('Save email logo error:', error);
+    res.status(500).json({ error: 'Failed to save email logo' });
+  }
+});
+
+// Get email logo (admin only)
+router.get('/email-logo', authenticate, requireRole('admin'), async (req, res) => {
+  try {
+    const result = await db.query(
+      "SELECT setting_value FROM settings WHERE setting_key = 'email_logo'"
+    );
+    res.json({ logo: result[0]?.setting_value || null });
+  } catch (error) {
+    console.error('Get email logo error:', error);
+    res.status(500).json({ error: 'Failed to get email logo' });
+  }
+});
+
+// ============================================
 // NEWSLETTER SUBSCRIPTION ENDPOINTS
 // ============================================
 

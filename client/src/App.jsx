@@ -107,6 +107,7 @@ import AdminRoles from './pages/admin/AdminRoles'
 import AdminPageEditor from './pages/admin/AdminPageEditor'
 import AdminLogin from './pages/admin/AdminLogin'
 import AdminNewsletterSubscribers from './pages/admin/AdminNewsletterSubscribers'
+import AdminEmailTemplates from './pages/admin/AdminEmailTemplates'
 import ProposalView from './pages/ProposalView'
 
 // Protected Route wrapper
@@ -324,6 +325,7 @@ function App() {
           <Route path="payment-gateway" element={<AdminPaymentGateway />} />
           <Route path="customize-plans" element={<AdminCustomizePlans />} />
           <Route path="email-settings" element={<AdminEmailSettings />} />
+          <Route path="email-templates" element={<AdminEmailTemplates />} />
           <Route path="proposals" element={<AdminProposals />} />
           <Route path="proposals/new" element={<AdminProposalEditor />} />
           <Route path="proposals/:uuid/edit" element={<AdminProposalEditor />} />

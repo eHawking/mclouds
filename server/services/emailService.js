@@ -809,6 +809,18 @@ class EmailService {
       email: encodeURIComponent(email)
     });
   }
+
+  // Get default template HTML by key (for admin editor)
+  getDefaultTemplate(key) {
+    const template = templates[key];
+    return template?.html || null;
+  }
+
+  // Get all template keys
+  getTemplateKeys() {
+    return Object.keys(templates);
+  }
 }
 
 module.exports = new EmailService();
+
