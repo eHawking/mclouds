@@ -198,6 +198,23 @@ export const useSiteSettingsStore = create(
   )
 )
 
+// Header & Footer Settings store (dynamic settings from admin)
+export const useHeaderFooterStore = create(
+  (set) => ({
+    headerSettings: null,
+    footerSettings: null,
+    loaded: false,
+    setHeaderSettings: (settings) => set({ headerSettings: settings }),
+    setFooterSettings: (settings) => set({ footerSettings: settings }),
+    setSettings: (header, footer) => set({ 
+      headerSettings: header, 
+      footerSettings: footer, 
+      loaded: true 
+    })
+  })
+)
+
+
 // Language store with translations
 const LANGUAGES = {
   en: { code: 'en', name: 'English', flag: '🇺🇸', dir: 'ltr' },

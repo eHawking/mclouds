@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { NavLink, Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Menu, X, ChevronDown, Moon, Sun, ShoppingCart, Globe, User, Server, Cloud, Database, HardDrive, Shield, Lock, Mail, Archive, Search, Bug, Zap, Wrench, Building2, Users, Gift, Globe2, Bot, Code, Hammer, ShieldCheck, BarChart3 } from 'lucide-react'
-import { useThemeStore, useAuthStore, useCartStore, useCurrencyStore, useSiteSettingsStore } from '../../store/useStore'
+import { useThemeStore, useAuthStore, useCartStore, useCurrencyStore, useSiteSettingsStore, useHeaderFooterStore } from '../../store/useStore'
 import GoogleTranslate from '../GoogleTranslate'
 import clsx from 'clsx'
 
-const navItems = [
+// Default nav items used as fallback when no settings are configured
+const defaultNavItems = [
   {
     label: 'Hosting',
     children: [
@@ -63,11 +64,46 @@ export default function Navbar() {
   const { items: cartItems } = useCartStore()
   const { currency, setCurrency } = useCurrencyStore()
   const { siteName, logo, headerLogoDark, headerLogoHeight } = useSiteSettingsStore()
+  const { headerSettings } = useHeaderFooterStore()
   const navigate = useNavigate()
 
   // Determine which logo to show based on theme
   const currentLogo = theme === 'dark' && headerLogoDark ? headerLogoDark : logo
   const logoHeightStyle = { height: `${headerLogoHeight || 40}px` }
+
+  // Use dynamic nav items from settings or fall back to defaults
+  const navItems = useMemo(() => {
+    if (!headerSettings?.navLinks || headerSettings.navLinks.length === 0) {
+      return defaultNavItems
+    }
+    // Transform admin settings format to navbar format
+    return headerSettings.navLinks
+      .filter(link => link.enabled !== false)
+      .map(link => {
+        // If link has children, format as dropdown
+        if (link.children && link.children.length > 0) {
+          return {
+            label: link.label,
+            children: link.children
+              .filter(child => child.enabled !== false)
+              .map(child => ({
+                to: child.url,
+                label: child.label,
+                desc: child.desc || '',
+                icon: Server // Default icon for dynamic items
+              }))
+          }
+        }
+        // Simple link (no dropdown)
+        return {
+          to: link.url,
+          label: link.label
+        }
+      })
+  }, [headerSettings])
+
+  // Get CTA button settings
+  const ctaButton = headerSettings?.ctaButton || { text: 'Get Started', url: '/pricing', enabled: true }
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20)

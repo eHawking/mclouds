@@ -1,12 +1,12 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  Facebook, Twitter, Linkedin, Instagram, Youtube,
+  Facebook, Twitter, Linkedin, Instagram, Youtube, Github,
   Mail, Phone, MapPin, ArrowRight, Send
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import toast from 'react-hot-toast'
-import { useSiteSettingsStore, useThemeStore } from '../../store/useStore'
+import { useSiteSettingsStore, useThemeStore, useHeaderFooterStore } from '../../store/useStore'
 
 // Custom Link component that scrolls to top
 const FooterLink = ({ to, children, className }) => {
@@ -25,7 +25,8 @@ const FooterLink = ({ to, children, className }) => {
   )
 }
 
-const footerLinks = {
+// Default footer links used as fallback
+const defaultFooterLinks = {
   services: [
     { label: 'VPS Hosting', to: '/hosting' },
     { label: 'VPS Servers', to: '/vps' },
@@ -66,13 +67,24 @@ const footerLinks = {
   ]
 }
 
-const socialLinks = [
-  { icon: Facebook, href: 'https://facebook.com/magneticclouds', label: 'Facebook' },
-  { icon: Twitter, href: 'https://twitter.com/magneticclouds', label: 'Twitter' },
-  { icon: Linkedin, href: 'https://linkedin.com/company/magneticclouds', label: 'LinkedIn' },
-  { icon: Instagram, href: 'https://instagram.com/magneticclouds', label: 'Instagram' },
-  { icon: Youtube, href: 'https://youtube.com/magneticclouds', label: 'YouTube' },
+// Default social links
+const defaultSocialLinks = [
+  { icon: Facebook, href: 'https://facebook.com/magneticclouds', label: 'Facebook', platform: 'facebook' },
+  { icon: Twitter, href: 'https://twitter.com/magneticclouds', label: 'Twitter', platform: 'twitter' },
+  { icon: Linkedin, href: 'https://linkedin.com/company/magneticclouds', label: 'LinkedIn', platform: 'linkedin' },
+  { icon: Instagram, href: 'https://instagram.com/magneticclouds', label: 'Instagram', platform: 'instagram' },
+  { icon: Youtube, href: 'https://youtube.com/magneticclouds', label: 'YouTube', platform: 'youtube' },
 ]
+
+// Social icon mapping
+const SOCIAL_ICONS = {
+  facebook: Facebook,
+  twitter: Twitter,
+  instagram: Instagram,
+  linkedin: Linkedin,
+  youtube: Youtube,
+  github: Github,
+}
 
 export default function Footer() {
   const [email, setEmail] = useState('')
@@ -82,13 +94,67 @@ export default function Footer() {
     footerLogo, footerLogoDark, footerLogoHeight,
     headerLogoDark
   } = useSiteSettingsStore()
+  const { footerSettings } = useHeaderFooterStore()
 
   // Determine which logo to show in footer
   // Priority: footerLogo/footerLogoDark > header logo as fallback
-  const getLightLogo = () => footerLogo || logo
-  const getDarkLogo = () => footerLogoDark || footerLogo || headerLogoDark || logo
+  const getLightLogo = () => footerLogo || footerSettings?.logo || logo
+  const getDarkLogo = () => footerLogoDark || footerLogo || footerSettings?.logo || headerLogoDark || logo
   const currentFooterLogo = theme === 'dark' ? getDarkLogo() : getLightLogo()
   const footerHeight = footerLogoHeight || 40
+
+  // Get footer columns - use dynamic settings or defaults
+  const footerColumns = useMemo(() => {
+    if (!footerSettings?.columns || footerSettings.columns.length === 0) {
+      // Return default columns formatted as array
+      return [
+        { title: 'Services', links: defaultFooterLinks.services },
+        { title: 'Tools', links: defaultFooterLinks.tools },
+        { title: 'Company', links: defaultFooterLinks.company },
+        { title: 'Support', links: defaultFooterLinks.support },
+        { title: 'Legal', links: defaultFooterLinks.legal },
+      ]
+    }
+    // Transform admin columns format
+    return footerSettings.columns.map(col => ({
+      title: col.title,
+      links: (col.links || [])
+        .filter(link => link.enabled !== false)
+        .map(link => ({
+          label: link.label,
+          to: link.url
+        }))
+    }))
+  }, [footerSettings])
+
+  // Get social links - use dynamic settings or defaults
+  const socialLinks = useMemo(() => {
+    if (!footerSettings?.socialLinks || footerSettings.socialLinks.length === 0) {
+      return defaultSocialLinks
+    }
+    return footerSettings.socialLinks
+      .filter(s => s.enabled !== false)
+      .map(s => ({
+        icon: SOCIAL_ICONS[s.platform] || Facebook,
+        href: s.url,
+        label: s.platform.charAt(0).toUpperCase() + s.platform.slice(1),
+        platform: s.platform
+      }))
+  }, [footerSettings])
+
+  // Get contact info
+  const contactInfo = footerSettings?.contactInfo || {
+    phone: '+880 1XXX-XXXXXX',
+    email: contactEmail || 'support@magneticclouds.com',
+    address: '3rd Floor, 45 Albemarle Street,\nMayfair, London W1S 4JL'
+  }
+
+  // Get footer text settings
+  const description = footerSettings?.description || 'Premium web hosting and cloud solutions from Bangladesh. Empowering businesses worldwide with reliable infrastructure.'
+  const copyrightText = footerSettings?.copyrightText || '© 2024 Magnetic Clouds. All rights reserved.'
+  const showNewsletter = footerSettings?.showNewsletter !== false
+  const newsletterTitle = footerSettings?.newsletterTitle || 'Subscribe to Newsletter'
+  const newsletterText = footerSettings?.newsletterText || 'Get the latest updates and offers'
 
   const handleSubscribe = (e) => {
     e.preventDefault()
@@ -100,39 +166,41 @@ export default function Footer() {
   return (
     <footer className="bg-dark-900 text-white">
       {/* Newsletter Section */}
-      <div className="border-b border-dark-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
-            <div className="text-center lg:text-left">
-              <h3 className="text-2xl font-bold font-display">
-                Subscribe to Newsletter
-              </h3>
-              <p className="mt-2 text-dark-400">
-                Get the latest updates and offers
-              </p>
-            </div>
-            <form onSubmit={handleSubscribe} className="flex w-full max-w-md gap-3">
-              <div className="flex-1 relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-500" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  className="w-full pl-12 pr-4 py-3 bg-dark-800 border border-dark-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
+      {showNewsletter && (
+        <div className="border-b border-dark-700">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
+              <div className="text-center lg:text-left">
+                <h3 className="text-2xl font-bold font-display">
+                  {newsletterTitle}
+                </h3>
+                <p className="mt-2 text-dark-400">
+                  {newsletterText}
+                </p>
               </div>
-              <button
-                type="submit"
-                className="px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 rounded-xl font-semibold transition-all flex items-center gap-2"
-              >
-                Subscribe
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
+              <form onSubmit={handleSubscribe} className="flex w-full max-w-md gap-3">
+                <div className="flex-1 relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-500" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    className="w-full pl-12 pr-4 py-3 bg-dark-800 border border-dark-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="px-6 py-3 bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 rounded-xl font-semibold transition-all flex items-center gap-2"
+                >
+                  Subscribe
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main Footer */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -160,23 +228,22 @@ export default function Footer() {
               )}
             </Link>
             <p className="mt-4 text-dark-400 max-w-sm">
-              Premium web hosting and cloud solutions from Bangladesh.
-              Empowering businesses worldwide with reliable infrastructure.
+              {description}
             </p>
 
             {/* Contact info */}
             <div className="mt-6 space-y-3">
-              <a href="tel:+8801XXXXXXXXX" className="flex items-center gap-3 text-dark-400 hover:text-white transition-colors">
+              <a href={`tel:${contactInfo.phone?.replace(/\s/g, '')}`} className="flex items-center gap-3 text-dark-400 hover:text-white transition-colors">
                 <Phone className="w-5 h-5" />
-                <span>+880 1XXX-XXXXXX</span>
+                <span>{contactInfo.phone}</span>
               </a>
-              <a href={`mailto:${contactEmail || 'support@magneticclouds.com'}`} className="flex items-center gap-3 text-dark-400 hover:text-white transition-colors">
+              <a href={`mailto:${contactInfo.email}`} className="flex items-center gap-3 text-dark-400 hover:text-white transition-colors">
                 <Mail className="w-5 h-5" />
-                <span>{contactEmail || 'support@magneticclouds.com'}</span>
+                <span>{contactInfo.email}</span>
               </a>
               <div className="flex items-start gap-3 text-dark-400">
                 <MapPin className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                <span>3rd Floor, 45 Albemarle Street,<br />Mayfair, London W1S 4JL</span>
+                <span dangerouslySetInnerHTML={{ __html: contactInfo.address?.replace(/\n/g, '<br />') }} />
               </div>
             </div>
 
@@ -197,95 +264,25 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Services */}
-          <div>
-            <h4 className="font-semibold text-lg mb-4">Services</h4>
-            <ul className="space-y-3">
-              {footerLinks.services.map((link) => (
-                <li key={link.to}>
-                  <FooterLink
-                    to={link.to}
-                    className="text-dark-400 hover:text-white transition-colors inline-flex items-center gap-1 group"
-                  >
-                    <ArrowRight className="w-4 h-4 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all" />
-                    {link.label}
-                  </FooterLink>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Tools */}
-          <div>
-            <h4 className="font-semibold text-lg mb-4">Tools</h4>
-            <ul className="space-y-3">
-              {footerLinks.tools.map((link) => (
-                <li key={link.to}>
-                  <FooterLink
-                    to={link.to}
-                    className="text-dark-400 hover:text-white transition-colors inline-flex items-center gap-1 group"
-                  >
-                    <ArrowRight className="w-4 h-4 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all" />
-                    {link.label}
-                  </FooterLink>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Company */}
-          <div>
-            <h4 className="font-semibold text-lg mb-4">Company</h4>
-            <ul className="space-y-3">
-              {footerLinks.company.map((link) => (
-                <li key={link.to}>
-                  <FooterLink
-                    to={link.to}
-                    className="text-dark-400 hover:text-white transition-colors inline-flex items-center gap-1 group"
-                  >
-                    <ArrowRight className="w-4 h-4 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all" />
-                    {link.label}
-                  </FooterLink>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Support */}
-          <div>
-            <h4 className="font-semibold text-lg mb-4">Support</h4>
-            <ul className="space-y-3">
-              {footerLinks.support.map((link) => (
-                <li key={link.to}>
-                  <FooterLink
-                    to={link.to}
-                    className="text-dark-400 hover:text-white transition-colors inline-flex items-center gap-1 group"
-                  >
-                    <ArrowRight className="w-4 h-4 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all" />
-                    {link.label}
-                  </FooterLink>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Legal */}
-          <div>
-            <h4 className="font-semibold text-lg mb-4">Legal</h4>
-            <ul className="space-y-3">
-              {footerLinks.legal.map((link) => (
-                <li key={link.to}>
-                  <FooterLink
-                    to={link.to}
-                    className="text-dark-400 hover:text-white transition-colors inline-flex items-center gap-1 group"
-                  >
-                    <ArrowRight className="w-4 h-4 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all" />
-                    {link.label}
-                  </FooterLink>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {/* Dynamic Footer Columns */}
+          {footerColumns.map((column, index) => (
+            <div key={column.title || index}>
+              <h4 className="font-semibold text-lg mb-4">{column.title}</h4>
+              <ul className="space-y-3">
+                {column.links.map((link) => (
+                  <li key={link.to}>
+                    <FooterLink
+                      to={link.to}
+                      className="text-dark-400 hover:text-white transition-colors inline-flex items-center gap-1 group"
+                    >
+                      <ArrowRight className="w-4 h-4 opacity-0 -ml-5 group-hover:opacity-100 group-hover:ml-0 transition-all" />
+                      {link.label}
+                    </FooterLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
 
         {/* Trust badges - Premium Design */}
@@ -336,7 +333,7 @@ export default function Footer() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-dark-400 text-sm">
-              © 2024 Magnetic Clouds. All rights reserved.
+              {copyrightText}
             </p>
             <div className="flex items-center gap-4">
               <a

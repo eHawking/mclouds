@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useThemeStore, useAuthStore, useSettingsStore, useSiteSettingsStore } from './store/useStore'
+import { useThemeStore, useAuthStore, useSettingsStore, useSiteSettingsStore, useHeaderFooterStore } from './store/useStore'
 import { settingsAPI } from './lib/api'
+import api from './lib/api'
 
 // Layouts
 import MainLayout from './layouts/MainLayout'
@@ -133,6 +134,7 @@ function App() {
   const { theme, themeStyle } = useThemeStore()
   const { setSettings } = useSettingsStore()
   const { setSiteSettings, favicon, siteName } = useSiteSettingsStore()
+  const { setSettings: setHeaderFooterSettings } = useHeaderFooterStore()
 
   // Apply theme to document
   useEffect(() => {
@@ -186,6 +188,17 @@ function App() {
       })
       .catch(console.error)
   }, [setSettings, setSiteSettings])
+
+  // Fetch header/footer settings
+  useEffect(() => {
+    api.get('/settings/header-footer')
+      .then(res => {
+        if (res.data) {
+          setHeaderFooterSettings(res.data.headerSettings, res.data.footerSettings)
+        }
+      })
+      .catch(err => console.error('Failed to load header/footer settings:', err))
+  }, [setHeaderFooterSettings])
 
   // Apply favicon when it changes
   useEffect(() => {
