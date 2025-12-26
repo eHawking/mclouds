@@ -1458,6 +1458,7 @@ router.get('/newsletter/subscribers', authenticate, requireRole('admin'), async 
   try {
     const { status, page = 1, limit = 50, search } = req.query;
 
+    // Just select id and email which always exist, then get rest dynamically
     let query = 'SELECT * FROM newsletter_subscribers';
     let countQuery = 'SELECT COUNT(*) as total FROM newsletter_subscribers';
     const params = [];
@@ -1485,17 +1486,30 @@ router.get('/newsletter/subscribers', authenticate, requireRole('admin'), async 
 
     // Get total count
     const countResult = await db.query(countQuery, countParams);
-    const total = countResult[0]?.total || 0;
+    const total = Number(countResult[0]?.total) || 0;
 
-    // Add pagination
+    // Add pagination - use id for ordering (always exists)
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    query += ' ORDER BY subscribed_at DESC LIMIT ? OFFSET ?';
+    query += ' ORDER BY id DESC LIMIT ? OFFSET ?';
     params.push(parseInt(limit), offset);
 
     const subscribers = await db.query(query, params);
 
+    // Filter out any meta properties from mariadb result
+    const cleanSubscribers = Array.isArray(subscribers)
+      ? subscribers.filter(s => s && s.id).map(s => ({
+        id: s.id,
+        email: s.email,
+        status: s.status || 'subscribed',
+        subscribed_at: s.subscribed_at,
+        unsubscribed_at: s.unsubscribed_at,
+        ip_address: s.ip_address,
+        source: s.source || 'footer'
+      }))
+      : [];
+
     res.json({
-      subscribers,
+      subscribers: cleanSubscribers,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -1504,8 +1518,8 @@ router.get('/newsletter/subscribers', authenticate, requireRole('admin'), async 
       }
     });
   } catch (error) {
-    console.error('Get newsletter subscribers error:', error);
-    res.status(500).json({ error: 'Failed to load subscribers' });
+    console.error('Get newsletter subscribers error:', error.message, error.code);
+    res.status(500).json({ error: 'Failed to load subscribers', details: error.message });
   }
 });
 
