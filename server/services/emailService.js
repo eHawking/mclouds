@@ -374,6 +374,52 @@ const templates = {
     `
   },
 
+  newsletter_subscribe: {
+    subject: 'Welcome to {{site_name}} Newsletter! 🎉',
+    html: `
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #1a1a2e;">
+        <div style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%); padding: 50px 40px; text-align: center; border-radius: 0 0 50px 50px;">
+          <div style="width: 80px; height: 80px; background: rgba(255,255,255,0.2); border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+            <span style="font-size: 40px;">📧</span>
+          </div>
+          <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">You're Subscribed!</h1>
+          <p style="color: rgba(255,255,255,0.9); margin-top: 10px; font-size: 16px;">Welcome to the {{site_name}} newsletter</p>
+        </div>
+        <div style="padding: 40px; background: #ffffff; margin: 0 20px; border-radius: 20px; transform: translateY(-30px); box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+          <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi there! 👋</p>
+          <p style="color: #374151; font-size: 16px; line-height: 1.6;">Thank you for subscribing to our newsletter. You'll now receive:</p>
+          <div style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border-radius: 12px; padding: 20px; margin: 25px 0;">
+            <div style="display: flex; align-items: center; margin-bottom: 12px;">
+              <span style="width: 24px; height: 24px; background: #10b981; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-right: 12px;"><span style="color: white; font-size: 14px;">✓</span></span>
+              <span style="color: #374151;">Exclusive deals & promotions</span>
+            </div>
+            <div style="display: flex; align-items: center; margin-bottom: 12px;">
+              <span style="width: 24px; height: 24px; background: #10b981; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-right: 12px;"><span style="color: white; font-size: 14px;">✓</span></span>
+              <span style="color: #374151;">New product announcements</span>
+            </div>
+            <div style="display: flex; align-items: center; margin-bottom: 12px;">
+              <span style="width: 24px; height: 24px; background: #10b981; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-right: 12px;"><span style="color: white; font-size: 14px;">✓</span></span>
+              <span style="color: #374151;">Tips & tutorials</span>
+            </div>
+            <div style="display: flex; align-items: center;">
+              <span style="width: 24px; height: 24px; background: #10b981; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-right: 12px;"><span style="color: white; font-size: 14px;">✓</span></span>
+              <span style="color: #374151;">Industry news & updates</span>
+            </div>
+          </div>
+          <p style="text-align: center; margin-top: 30px;">
+            <a href="{{site_url}}" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 14px 40px; text-decoration: none; border-radius: 30px; display: inline-block; font-weight: 600; box-shadow: 0 4px 15px rgba(99,102,241,0.4);">Explore Our Services</a>
+          </p>
+        </div>
+        <div style="padding: 30px; text-align: center; color: #9ca3af;">
+          <p style="font-size: 12px; margin: 0;">© {{year}} {{site_name}}. All rights reserved.</p>
+          <p style="font-size: 11px; margin-top: 10px;">
+            Don't want to receive these emails? <a href="{{site_url}}/unsubscribe?email={{email}}" style="color: #6366f1;">Unsubscribe</a>
+          </p>
+        </div>
+      </div>
+    `
+  },
+
   test_email: {
     subject: 'Test Email - {{site_name}}',
     html: `
@@ -427,7 +473,7 @@ class EmailService {
     const keys = [
       'mailgun_enabled', 'mailgun_api_key', 'mailgun_domain',
       'mailgun_from_email', 'mailgun_from_name', 'mailgun_region',
-      'welcome_email', 'password_reset', 'order_placed', 'order_confirmed',
+      'welcome_email', 'password_reset', 'newsletter_subscribe', 'order_placed', 'order_confirmed',
       'order_processing', 'order_completed', 'order_cancelled',
       'ticket_created', 'ticket_replied', 'ticket_closed',
       'invoice_generated', 'payment_received', 'service_expiring', 'service_suspended',
@@ -729,6 +775,13 @@ class EmailService {
         ticket_priority: ticket.priority
       });
     }
+  }
+
+  // Newsletter subscription confirmation
+  async sendNewsletterConfirmation(email) {
+    return this.send(email, 'newsletter_subscribe', {
+      email: encodeURIComponent(email)
+    });
   }
 }
 

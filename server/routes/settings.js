@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../database/connection');
 const { authenticate, requireRole } = require('../middleware/auth');
+const emailService = require('../services/emailService');
 
 const router = express.Router();
 
@@ -1169,7 +1170,13 @@ router.post('/newsletter/subscribe', async (req, res) => {
       );
     }
 
-    // TODO: Send confirmation email via Mailgun if enabled
+    // Send confirmation email via Mailgun
+    try {
+      await emailService.sendNewsletterConfirmation(email.toLowerCase());
+    } catch (emailErr) {
+      console.error('Newsletter confirmation email failed:', emailErr.message);
+      // Don't fail the subscription if email fails
+    }
 
     res.json({ message: 'Successfully subscribed!', success: true });
   } catch (error) {
