@@ -360,8 +360,8 @@ export default function AdminEmailTemplates() {
                                             setSelectedTemplate(null)
                                         }}
                                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${isActive
-                                                ? 'bg-gradient-to-r from-primary-600/20 to-primary-600/5 border border-primary-500/20 text-white'
-                                                : 'text-dark-400 hover:bg-dark-800 hover:text-white'
+                                            ? 'bg-gradient-to-r from-primary-600/20 to-primary-600/5 border border-primary-500/20 text-white'
+                                            : 'text-dark-400 hover:bg-dark-800 hover:text-white'
                                             }`}
                                     >
                                         <div className={`p-2 rounded-lg transition-colors ${isActive ? `bg-gradient-to-br ${category.color} shadow-lg` : 'bg-dark-700/50 group-hover:bg-dark-700'
@@ -501,7 +501,7 @@ export default function AdminEmailTemplates() {
                                                                 onClick={() => copyVariable(v)}
                                                                 className="group flex items-center gap-1.5 px-3 py-1.5 bg-dark-800 border border-dark-600 hover:border-primary-500 hover:bg-dark-700 rounded-md transition-all"
                                                             >
-                                                                <code className="text-xs font-mono text-primary-300">{{`{{${v}}}`}}</code>
+                                                                <code className="text-xs font-mono text-primary-300">{`{{${v}}}`}</code>
                                                                 {copiedVar === v ? (
                                                                     <Check className="w-3 h-3 text-green-400" />
                                                                 ) : (
