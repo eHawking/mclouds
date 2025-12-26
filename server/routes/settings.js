@@ -1336,17 +1336,26 @@ router.post('/email-logo', authenticate, requireRole('admin'), async (req, res) 
       return res.status(400).json({ error: 'Logo is required' });
     }
 
-    // Save to settings
-    await db.query(`
-      INSERT INTO settings (setting_key, setting_value, setting_type, category, is_public)
-      VALUES ('email_logo', ?, 'string', 'email', FALSE)
-      ON DUPLICATE KEY UPDATE setting_value = ?
-    `, [logo, logo]);
+    // Check logo size (max 500KB base64)
+    if (logo.length > 700000) {
+      return res.status(400).json({ error: 'Logo too large. Please use an image under 500KB.' });
+    }
 
-    res.json({ message: 'Email logo saved successfully' });
+    console.log('Saving email logo, size:', logo.length, 'bytes');
+
+    // Save to settings - ensure proper upsert
+    const result = await db.query(`
+      INSERT INTO settings (setting_key, setting_value, setting_type, category, is_public)
+      VALUES ('email_logo', ?, 'string', 'email', 0)
+      ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
+    `, [logo]);
+
+    console.log('Logo save result:', result);
+
+    res.json({ message: 'Email logo saved successfully', success: true });
   } catch (error) {
     console.error('Save email logo error:', error);
-    res.status(500).json({ error: 'Failed to save email logo' });
+    res.status(500).json({ error: 'Failed to save email logo: ' + error.message });
   }
 });
 

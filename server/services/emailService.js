@@ -599,15 +599,23 @@ class EmailService {
       subject = this.replaceVariables(templateSubject, allVariables);
       html = this.replaceVariables(templateHtml, allVariables);
 
-      // If logo exists and not already in template, add logo at top
-      if (emailLogo && !html.includes('{{email_logo}}') && !html.includes(emailLogo)) {
-        // Insert logo after first opening div
-        const logoHtml = `<div style="text-align: center; padding: 20px 0;"><img src="${emailLogo}" alt="${allVariables.site_name}" style="max-width: 200px; max-height: 60px; object-fit: contain;" /></div>`;
-        // Try to insert after header
-        if (html.includes('</h1>')) {
-          html = html.replace('</h1>', '</h1>' + logoHtml);
+      // If logo exists, add it at the very top of the email with premium styling
+      if (emailLogo) {
+        const logoHeader = `
+          <div style="text-align: center; padding: 25px 20px; background: linear-gradient(135deg, #1f2937, #111827);">
+            <img src="${emailLogo}" alt="${allVariables.site_name}" style="max-width: 180px; max-height: 50px; object-fit: contain;" />
+          </div>
+        `;
+        // Insert logo at the very beginning of the email body
+        if (html.includes('<div style="font-family:')) {
+          html = html.replace('<div style="font-family:', logoHeader + '<div style="font-family:');
+        } else if (html.includes('<div')) {
+          // Insert after first opening tag
+          const firstDivIndex = html.indexOf('<div');
+          const insertPoint = html.indexOf('>', firstDivIndex) + 1;
+          html = html.slice(0, insertPoint) + logoHeader + html.slice(insertPoint);
         } else {
-          html = logoHtml + html;
+          html = logoHeader + html;
         }
       }
 
