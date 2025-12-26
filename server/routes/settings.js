@@ -1489,7 +1489,7 @@ router.get('/newsletter/subscribers', authenticate, requireRole('admin'), async 
 
     // Add pagination
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    query += ' ORDER BY subscribed_at DESC LIMIT ? OFFSET ?';
     params.push(parseInt(limit), offset);
 
     const subscribers = await db.query(query, params);
