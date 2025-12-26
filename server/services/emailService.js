@@ -552,23 +552,64 @@ class EmailService {
     let html = '';
 
     try {
-      const template = templates[templateName];
-      if (!template) {
+      // Get default template
+      const defaultTemplate = templates[templateName];
+      if (!defaultTemplate) {
         console.error(`Template ${templateName} not found`);
         return false;
       }
 
-      // Add default variables
+      // Try to get custom template from database
+      let customTemplate = null;
+      let emailLogo = null;
+      try {
+        const customResults = await db.query(
+          'SELECT subject, html_content, is_active FROM email_templates WHERE template_key = ?',
+          [templateName]
+        );
+        if (customResults && customResults.length > 0 && customResults[0].is_active) {
+          customTemplate = customResults[0];
+        }
+
+        // Get email logo
+        const logoResult = await db.query(
+          "SELECT setting_value FROM settings WHERE setting_key = 'email_logo'"
+        );
+        if (logoResult && logoResult.length > 0) {
+          emailLogo = logoResult[0].setting_value;
+        }
+      } catch (dbErr) {
+        console.log('Could not load custom template or logo:', dbErr.message);
+      }
+
+      // Use custom template if exists, otherwise use default
+      const templateSubject = customTemplate?.subject || defaultTemplate.subject;
+      const templateHtml = customTemplate?.html_content || defaultTemplate.html;
+
+      // Add default variables + logo
       const settings = await this.getSettings();
       const allVariables = {
         site_name: settings.site_name || 'Magnetic Clouds',
-        site_url: settings.site_url || 'https://clouds.hassanscode.com',
+        site_url: settings.site_url || 'https://magnetic-clouds.com',
         year: new Date().getFullYear(),
+        email_logo: emailLogo || '',
         ...variables
       };
 
-      subject = this.replaceVariables(template.subject, allVariables);
-      html = this.replaceVariables(template.html, allVariables);
+      subject = this.replaceVariables(templateSubject, allVariables);
+      html = this.replaceVariables(templateHtml, allVariables);
+
+      // If logo exists and not already in template, add logo at top
+      if (emailLogo && !html.includes('{{email_logo}}') && !html.includes(emailLogo)) {
+        // Insert logo after first opening div
+        const logoHtml = `<div style="text-align: center; padding: 20px 0;"><img src="${emailLogo}" alt="${allVariables.site_name}" style="max-width: 200px; max-height: 60px; object-fit: contain;" /></div>`;
+        // Try to insert after header
+        if (html.includes('</h1>')) {
+          html = html.replace('</h1>', '</h1>' + logoHtml);
+        } else {
+          html = logoHtml + html;
+        }
+      }
 
       // Always log email attempt first
       await this.logEmail({
