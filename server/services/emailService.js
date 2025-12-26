@@ -3,513 +3,451 @@ const Mailgun = require('mailgun.js');
 const db = require('../database/connection');
 const { v4: uuidv4 } = require('uuid');
 
-// Email templates
+/**
+ * Premium Email Template Wrapper
+ * Wraps content in a responsive, dark-themed structure with gradient header and footer.
+ */
+const getPremiumTemplateWrapper = (content, title, category = 'General') => {
+  // Category colors mapping (Tailwind-ish palette)
+  const categoryColors = {
+    'Authentication': '#3b82f6', // blue-500
+    'Billing': '#10b981',       // emerald-500
+    'Support': '#8b5cf6',       // violet-500
+    'Services': '#f59e0b',      // amber-500
+    'Marketing': '#ec4899',     // pink-500
+    'System': '#6366f1',        // indigo-500
+    'General': '#64748b'        // slate-500
+  };
+
+  const accentColor = categoryColors[category] || categoryColors['General'];
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <style>
+        /* Reset & Base Styles */
+        body { margin: 0; padding: 0; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; color: #1e293b; }
+        img { border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; max-width: 100%; }
+        table { border-collapse: collapse !important; width: 100%; }
+        a { color: ${accentColor}; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        
+        /* Mobile Responsive */
+        @media screen and (max-width: 600px) {
+            .container { width: 100% !important; padding: 0 !important; }
+            .content-padding { padding: 24px 20px !important; }
+            .header-padding { padding: 32px 20px !important; }
+            .mobile-stack { display: block !important; width: 100% !important; }
+        }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f3f4f6;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f3f4f6;">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                
+                <!-- Email Container -->
+                <table border="0" cellpadding="0" cellspacing="0" width="600" class="container" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); width: 600px; max-width: 600px;">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td class="header-padding" align="center" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 48px 40px; position: relative;">
+                            <!-- Accent Line -->
+                            <div style="position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, ${accentColor}, #a855f7);"></div>
+                            
+                            <!-- Logo Placeholder -->
+                            <div style="margin-bottom: 0;">
+                                {{email_logo}}
+                            </div>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td class="content-padding" style="padding: 40px; background-color: #ffffff;">
+                            ${content}
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f8fafc; padding: 32px 40px; border-top: 1px solid #e2e8f0;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                <tr>
+                                    <td align="center" style="color: #64748b; font-size: 13px; line-height: 20px;">
+                                        <p style="margin: 0 0 12px 0; font-weight: 600; color: #475569;">{{site_name}}</p>
+                                        <p style="margin: 0 0 12px 0;">Need help? <a href="{{site_url}}/support" style="color: ${accentColor}; text-decoration: none; font-weight: 500;">Contact Support</a></p>
+                                        <p style="margin: 0;">&copy; {{year}} {{site_name}}. All rights reserved.</p>
+                                        <p style="margin: 8px 0 0 0; font-size: 11px; opacity: 0.7;">This email was sent to {{email}}. If you didn't request this, please ignore it.</p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+                
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+    `;
+};
+
+// Styling Constants for consistency
+const s = {
+  h1: 'margin: 0 0 24px 0; font-size: 24px; font-weight: 700; color: #0f172a; letter-spacing: -0.5px; line-height: 1.3;',
+  p: 'margin: 0 0 16px 0; font-size: 16px; line-height: 26px; color: #334155;',
+  btn: 'display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); color: #ffffff !important; text-decoration: none !important; border-radius: 8px; font-weight: 600; font-size: 16px; margin: 24px 0; text-align: center; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2); transition: all 0.2s;',
+  btnRed: 'display: inline-block; padding: 14px 32px; background: #ef4444; color: #ffffff !important; text-decoration: none !important; border-radius: 8px; font-weight: 600; font-size: 16px; margin: 24px 0; text-align: center; box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.2); transition: all 0.2s;',
+  code: 'background-color: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; font-family: monospace; font-size: 20px; color: #0f172a; letter-spacing: 2px; text-align: center; margin: 24px 0; font-weight: 600;',
+  card: 'background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 24px;',
+  table: 'width: 100%; border-collapse: collapse; margin: 16px 0;',
+  th: 'text-align: left; padding: 12px; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 13px; font-weight: 600; text-transform: uppercase;',
+  td: 'padding: 12px; border-bottom: 1px solid #f1f5f9; color: #334155; font-size: 15px;',
+  badge: 'display: inline-block; padding: 4px 10px; border-radius: 99px; font-size: 12px; font-weight: 600; text-transform: uppercase;'
+};
+
+// Email templates definition
 const templates = {
+  // --- AUTHENTICATION ---
   welcome_email: {
-    subject: 'Welcome to {{site_name}}!',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">Welcome to {{site_name}}!</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>Hi {{user_name}},</p>
-          <p>Thank you for creating an account with us. We're excited to have you on board!</p>
-          <p>You can now:</p>
-          <ul>
-            <li>Browse our hosting plans and services</li>
-            <li>Register domain names</li>
-            <li>Manage your account and billing</li>
-            <li>Get 24/7 support from our team</li>
-          </ul>
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="{{site_url}}/dashboard" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">Go to Dashboard</a>
-          </p>
-        </div>
-        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-          <p>© {{year}} {{site_name}}. All rights reserved.</p>
-        </div>
-      </div>
-    `
+    subject: 'Welcome to {{site_name}}! 🚀',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">Welcome aboard, {{user_name}}!</h1>
+            <p style="${s.p}">Thank you for joining {{site_name}}. We're thrilled to have you with us. Your account is the gateway to powerful cloud solutions tailored for your needs.</p>
+            <p style="${s.p}">Get started by verifying your email address to unlock full access to your dashboard.</p>
+            <div style="text-align: center;">
+                <a href="{{site_url}}/dashboard" style="${s.btn}">Go to Dashboard</a>
+            </div>
+            <p style="${s.p} font-size: 14px; margin-top: 32px;">Need guidance? Check out our documentation or contact support anytime.</p>
+        `, 'Welcome to Magnetic Clouds', 'Authentication')
   },
 
   password_reset: {
-    subject: 'Reset Your Password - {{site_name}}',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">Password Reset</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>Hi {{user_name}},</p>
-          <p>We received a request to reset your password. Click the button below to create a new password:</p>
-          <p style="text-align: center; margin: 30px 0;">
-            <a href="{{reset_link}}" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">Reset Password</a>
-          </p>
-          <p style="color: #6b7280; font-size: 14px;">This link will expire in 1 hour. If you didn't request this, you can safely ignore this email.</p>
-        </div>
-        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-          <p>© {{year}} {{site_name}}. All rights reserved.</p>
-        </div>
-      </div>
-    `
+    subject: 'Reset Your Password 🔒',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">Password Reset Request</h1>
+            <p style="${s.p}">We received a request to reset the password for your account associated with {{email}}.</p>
+            <p style="${s.p}">Click the button below to secure your account with a new password. This link expires in 1 hour.</p>
+            <div style="text-align: center;">
+                <a href="{{reset_link}}" style="${s.btn}">Reset Password</a>
+            </div>
+            <p style="${s.p} font-size: 14px; opacity: 0.8;">If you didn't ask for this, you can safely ignore this email.</p>
+        `, 'Reset Password', 'Authentication')
   },
 
+  verify_email: {
+    subject: 'Verify Your Email Address ✅',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">Confirm Your Email</h1>
+            <p style="${s.p}">Please verify your email address to complete your registration and secure your account.</p>
+            <div style="text-align: center;">
+                <a href="{{verify_link}}" style="${s.btn}">Verify Email Address</a>
+            </div>
+        `, 'Verify Email', 'Authentication')
+  },
+
+  two_factor_auth: {
+    subject: 'Your 2FA Verification Code 🛡️',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">Verification Code</h1>
+            <p style="${s.p}">Use the code below to sign in to your {{site_name}} account.</p>
+            <div style="${s.code}">{{code}}</div>
+            <p style="${s.p}">This code is valid for 10 minutes. Do not share it with anyone.</p>
+            <div style="${s.card}">
+                <p style="margin:0; font-size:13px; color:#64748b;">
+                    <strong>Device:</strong> {{browser_name}} on {{operating_system}}<br>
+                    <strong>IP Address:</strong> {{ip_address}}
+                </p>
+            </div>
+        `, '2FA Code', 'Authentication')
+  },
+
+  login_alert: {
+    subject: 'New Login Detected ⚠️',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">New Device Login</h1>
+            <p style="${s.p}">We noticed a new login to your account from an unrecognized device.</p>
+            <div style="${s.card}">
+                <table width="100%">
+                    <tr>
+                        <td style="color:#64748b; font-size:13px; padding-bottom:8px;">Device</td>
+                        <td style="font-weight:500; padding-bottom:8px;">{{browser_name}} on {{operating_system}}</td>
+                    </tr>
+                    <tr>
+                        <td style="color:#64748b; font-size:13px; padding-bottom:8px;">Location</td>
+                        <td style="font-weight:500; padding-bottom:8px;">{{location}}</td>
+                    </tr>
+                    <tr>
+                        <td style="color:#64748b; font-size:13px;">IP Address</td>
+                        <td style="font-weight:500;">{{ip_address}}</td>
+                    </tr>
+                </table>
+            </div>
+            <p style="${s.p}">If this wasn't you, please secure your account immediately.</p>
+            <div style="text-align: center;">
+                <a href="{{site_url}}/reset-password" style="${s.btnRed}">Secure Account</a>
+            </div>
+        `, 'Login Alert', 'Authentication')
+  },
+
+  // --- BILLING & ORDERS ---
   order_placed: {
-    subject: 'Order Confirmation #{{order_id}} - {{site_name}}',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">Order Received!</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>Hi {{user_name}},</p>
-          <p>Thank you for your order! We've received your order and it's being processed.</p>
-          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <h3 style="margin-top: 0;">Order Details</h3>
-            <p><strong>Order ID:</strong> #{{order_id}}</p>
-            <p><strong>Date:</strong> {{order_date}}</p>
-            <p><strong>Total:</strong> {{order_total}}</p>
-            <p><strong>Payment Status:</strong> {{payment_status}}</p>
-          </div>
-          <h3>Items:</h3>
-          {{order_items}}
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="{{site_url}}/dashboard/orders" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Order</a>
-          </p>
-        </div>
-        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-          <p>© {{year}} {{site_name}}. All rights reserved.</p>
-        </div>
-      </div>
-    `
+    subject: 'Order Confirmation #{{order_id}} 🎉',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">Order Received</h1>
+            <p style="${s.p}">Thanks for your order, {{user_name}}! We're determining the details now.</p>
+            <div style="${s.card}">
+                <div style="border-bottom:1px solid #e2e8f0; padding-bottom:16px; margin-bottom:16px;">
+                    <span style="color:#64748b; font-size:13px;">Order ID</span><br>
+                    <span style="color:#0f172a; font-size:18px; font-weight:700;">#{{order_id}}</span>
+                </div>
+                <table style="${s.table}">
+                    <thead>
+                        <tr><th style="${s.th}">Details</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="${s.td}">{{order_items}}</td></tr>
+                    </tbody>
+                </table>
+                <div style="text-align:right; margin-top:16px;">
+                    <span style="color:#64748b; margin-right:12px;">Total</span>
+                    <span style="color:#0f172a; font-size:20px; font-weight:700;">{{order_total}}</span>
+                </div>
+            </div>
+            <div style="text-align: center;">
+                <a href="{{site_url}}/dashboard/orders" style="${s.btn}">View Order</a>
+            </div>
+        `, 'Order Placed', 'Billing')
   },
 
   order_confirmed: {
-    subject: 'Payment Confirmed - Order #{{order_id}} - {{site_name}}',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #10b981, #059669); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">✓ Payment Confirmed</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>Hi {{user_name}},</p>
-          <p>Great news! Your payment for order #{{order_id}} has been confirmed.</p>
-          <p>We're now processing your order and will notify you once your services are active.</p>
-          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <p><strong>Order ID:</strong> #{{order_id}}</p>
-            <p><strong>Amount Paid:</strong> {{order_total}}</p>
-          </div>
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="{{site_url}}/dashboard/orders" style="background: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Order</a>
-          </p>
-        </div>
-        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-          <p>© {{year}} {{site_name}}. All rights reserved.</p>
-        </div>
-      </div>
-    `
+    subject: 'Payment Confirmed: Order #{{order_id}} ✅',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">Payment Successful</h1>
+            <p style="${s.p}">Your payment for Order #{{order_id}} has been processed. We are now provisioning your services.</p>
+            <div style="${s.card}">
+                <table width="100%">
+                    <tr>
+                        <td style="color:#64748b;">Amount Paid</td>
+                        <td style="font-weight:700; text-align:right;">{{order_total}}</td>
+                    </tr>
+                </table>
+            </div>
+            <div style="text-align: center;">
+                <a href="{{site_url}}/dashboard/orders" style="${s.btn}">Track Order</a>
+            </div>
+        `, 'Payment Confirmed', 'Billing')
   },
 
   order_completed: {
-    subject: 'Your Service is Active - Order #{{order_id}} - {{site_name}}',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #10b981, #059669); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">🎉 Service Activated!</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>Hi {{user_name}},</p>
-          <p>Your order #{{order_id}} has been completed and your services are now active!</p>
-          <p>You can access and manage your services from your dashboard.</p>
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="{{site_url}}/dashboard/services" style="background: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">Manage Services</a>
-          </p>
-        </div>
-        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-          <p>© {{year}} {{site_name}}. All rights reserved.</p>
-        </div>
-      </div>
-    `
+    subject: 'Service Activated - Order #{{order_id}} 🚀',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">Services Active!</h1>
+            <p style="${s.p}">Great news! Your services from Order #{{order_id}} are now fully active and ready to use.</p>
+            <p style="${s.p}">Log in to your dashboard to manage your new services.</p>
+            <div style="text-align: center;">
+                <a href="{{site_url}}/dashboard/services" style="${s.btn}">Manage Services</a>
+            </div>
+        `, 'Order Completed', 'Services')
   },
 
   order_cancelled: {
-    subject: 'Order Cancelled - #{{order_id}} - {{site_name}}',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #ef4444, #dc2626); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">Order Cancelled</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>Hi {{user_name}},</p>
-          <p>Your order #{{order_id}} has been cancelled.</p>
-          <p>If you have any questions or need assistance, please contact our support team.</p>
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="{{site_url}}/support" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">Contact Support</a>
-          </p>
-        </div>
-        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-          <p>© {{year}} {{site_name}}. All rights reserved.</p>
-        </div>
-      </div>
-    `
-  },
-
-  ticket_created: {
-    subject: 'Ticket Created #{{ticket_id}} - {{site_name}}',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">Support Ticket Created</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>Hi {{user_name}},</p>
-          <p>Your support ticket has been created successfully. Our team will respond as soon as possible.</p>
-          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <p><strong>Ticket ID:</strong> #{{ticket_id}}</p>
-            <p><strong>Subject:</strong> {{ticket_subject}}</p>
-            <p><strong>Priority:</strong> {{ticket_priority}}</p>
-          </div>
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="{{site_url}}/dashboard/tickets" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Ticket</a>
-          </p>
-        </div>
-        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-          <p>© {{year}} {{site_name}}. All rights reserved.</p>
-        </div>
-      </div>
-    `
-  },
-
-  ticket_replied: {
-    subject: 'New Reply on Ticket #{{ticket_id}} - {{site_name}}',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">New Ticket Reply</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>Hi {{user_name}},</p>
-          <p>There's a new reply on your support ticket.</p>
-          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <p><strong>Ticket ID:</strong> #{{ticket_id}}</p>
-            <p><strong>Subject:</strong> {{ticket_subject}}</p>
-            <p><strong>Reply from:</strong> {{reply_from}}</p>
-            <div style="border-left: 3px solid #6366f1; padding-left: 15px; margin-top: 15px;">
-              {{reply_message}}
+    subject: 'Order Cancelled #{{order_id}}',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">Order Cancelled</h1>
+            <p style="${s.p}">Your order #{{order_id}} has been cancelled.</p>
+            <p style="${s.p}">If you have questions, please reach out to our support team.</p>
+            <div style="text-align: center;">
+                <a href="{{site_url}}/support" style="${s.btn}">Contact Support</a>
             </div>
-          </div>
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="{{site_url}}/dashboard/tickets" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View & Reply</a>
-          </p>
-        </div>
-        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-          <p>© {{year}} {{site_name}}. All rights reserved.</p>
-        </div>
-      </div>
-    `
-  },
-
-  ticket_closed: {
-    subject: 'Ticket Closed #{{ticket_id}} - {{site_name}}',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #10b981, #059669); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">Ticket Resolved</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>Hi {{user_name}},</p>
-          <p>Your support ticket #{{ticket_id}} has been marked as resolved and closed.</p>
-          <p>If you need further assistance, you can reopen this ticket or create a new one.</p>
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="{{site_url}}/dashboard/tickets" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Tickets</a>
-          </p>
-        </div>
-        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-          <p>© {{year}} {{site_name}}. All rights reserved.</p>
-        </div>
-      </div>
-    `
+        `, 'Order Cancelled', 'Billing')
   },
 
   invoice_generated: {
-    subject: 'New Invoice #{{invoice_id}} - {{site_name}}',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">New Invoice</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>Hi {{user_name}},</p>
-          <p>A new invoice has been generated for your account.</p>
-          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <p><strong>Invoice ID:</strong> #{{invoice_id}}</p>
-            <p><strong>Amount Due:</strong> {{invoice_amount}}</p>
-            <p><strong>Due Date:</strong> {{due_date}}</p>
-          </div>
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="{{site_url}}/dashboard/invoices" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">Pay Now</a>
-          </p>
-        </div>
-        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-          <p>© {{year}} {{site_name}}. All rights reserved.</p>
-        </div>
-      </div>
-    `
+    subject: 'New Invoice #{{invoice_id}} 📄',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">New Invoice Generated</h1>
+            <p style="${s.p}">An invoice is ready for payment.</p>
+            <div style="${s.card} text-align:center;">
+                <p style="color:#64748b; font-size:14px; margin-bottom:8px;">Amount Due</p>
+                <p style="color:#0f172a; font-size:32px; font-weight:700; margin:0 0 8px 0;">{{invoice_amount}}</p>
+                <p style="color:#ef4444; font-weight:500;">Due: {{due_date}}</p>
+            </div>
+            <div style="text-align: center;">
+                <a href="{{site_url}}/dashboard/invoices" style="${s.btn}">View & Pay</a>
+            </div>
+        `, 'New Invoice', 'Billing')
   },
 
   payment_received: {
-    subject: 'Payment Received - {{site_name}}',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #10b981, #059669); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">✓ Payment Received</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>Hi {{user_name}},</p>
-          <p>We've received your payment. Thank you!</p>
-          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <p><strong>Amount:</strong> {{payment_amount}}</p>
-            <p><strong>Invoice:</strong> #{{invoice_id}}</p>
-            <p><strong>Date:</strong> {{payment_date}}</p>
-          </div>
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="{{site_url}}/dashboard/invoices" style="background: #10b981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Invoices</a>
-          </p>
-        </div>
-        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-          <p>© {{year}} {{site_name}}. All rights reserved.</p>
-        </div>
-      </div>
-    `
+    subject: 'Payment Received for Invoice #{{invoice_id}}',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">Payment Received</h1>
+            <p style="${s.p}">Thank you! We've received your payment.</p>
+            <div style="${s.card}">
+                <p><strong>Invoice:</strong> #{{invoice_id}}</p>
+                <p><strong>Amount:</strong> {{payment_amount}}</p>
+                <p><strong>Date:</strong> {{payment_date}}</p>
+            </div>
+            <div style="text-align: center;">
+                <a href="{{site_url}}/dashboard/invoices" style="${s.btn}">View Invoices</a>
+            </div>
+        `, 'Payment Confirmation', 'Billing')
   },
 
+  // --- SUPPORT ---
+  ticket_created: {
+    subject: '[Ticket #{{ticket_id}}] {{ticket_subject}} 🎫',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">Ticket Received</h1>
+            <p style="${s.p}">Hello {{user_name}}, we've received your request.</p>
+            <div style="${s.card}">
+                <div style="margin-bottom:12px;">
+                    <span style="${s.badge} background:#e0e7ff; color:#4338ca;">#{{ticket_id}}</span>
+                </div>
+                <h3 style="margin:0 0 8px 0;">{{ticket_subject}}</h3>
+                <p style="margin:0; color:#64748b; font-size:14px;">Priority: {{ticket_priority}}</p>
+            </div>
+            <div style="text-align: center;">
+                <a href="{{site_url}}/dashboard/tickets" style="${s.btn}">View Ticket</a>
+            </div>
+        `, 'Ticket Created', 'Support')
+  },
+
+  ticket_replied: {
+    subject: 'Reply to Ticket #{{ticket_id}} 💬',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">New Support Reply</h1>
+            <p style="${s.p}">A support agent has replied to your ticket.</p>
+            <div style="${s.card} border-left:4px solid #6366f1;">
+                <p style="margin-bottom:8px; font-weight:600; font-size:14px; color:#475569;">From: {{reply_from}}</p>
+                <div style="color:#334155; line-height:1.6;">{{reply_message}}</div>
+            </div>
+            <div style="text-align: center;">
+                <a href="{{site_url}}/dashboard/tickets" style="${s.btn}">View & Reply</a>
+            </div>
+        `, 'Ticket Reply', 'Support')
+  },
+
+  ticket_closed: {
+    subject: 'Ticket #{{ticket_id}} Closed',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">Ticket Closed</h1>
+            <p style="${s.p}">Your ticket <strong>#{{ticket_id}}</strong> has been resolved and closed.</p>
+            <p style="${s.p}">We hope we were able to help! Feel free to open a new ticket if you need anything else.</p>
+            <div style="text-align: center;">
+                <a href="{{site_url}}/dashboard/tickets" style="${s.btn}">Support Dashboard</a>
+            </div>
+        `, 'Ticket Closed', 'Support')
+  },
+
+  // --- SERVICES ---
   service_expiring: {
-    subject: 'Service Expiring Soon - {{site_name}}',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #f59e0b, #d97706); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">⚠️ Service Expiring</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>Hi {{user_name}},</p>
-          <p>Your service <strong>{{service_name}}</strong> will expire on <strong>{{expiry_date}}</strong>.</p>
-          <p>To avoid any interruption, please renew your service before the expiration date.</p>
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="{{site_url}}/dashboard/services" style="background: #f59e0b; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">Renew Now</a>
-          </p>
-        </div>
-        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-          <p>© {{year}} {{site_name}}. All rights reserved.</p>
-        </div>
-      </div>
-    `
+    subject: 'Use Action Required: Service Expiring ⚠️',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">Service Expiring Soon</h1>
+            <p style="${s.p}">Your service <strong>{{service_name}}</strong> is expiring on <strong>{{expiry_date}}</strong>.</p>
+            <p style="${s.p}">Please renew now to avoid service interruption.</p>
+            <div style="text-align: center;">
+                <a href="{{site_url}}/dashboard/services" style="${s.btn}">Renew Service</a>
+            </div>
+        `, 'Service Expiring', 'Services')
   },
 
   service_suspended: {
-    subject: 'Service Suspended - {{site_name}}',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #ef4444, #dc2626); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">Service Suspended</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>Hi {{user_name}},</p>
-          <p>Your service <strong>{{service_name}}</strong> has been suspended due to non-payment.</p>
-          <p>To reactivate your service, please complete the pending payment.</p>
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="{{site_url}}/dashboard/invoices" style="background: #ef4444; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">Pay Now</a>
-          </p>
-        </div>
-        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-          <p>© {{year}} {{site_name}}. All rights reserved.</p>
-        </div>
-      </div>
-    `
+    subject: 'Service Suspended: {{service_name}} ⛔',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">Service Suspended</h1>
+            <p style="${s.p}">Your service <strong>{{service_name}}</strong> has been suspended due to overdue payment.</p>
+            <div style="${s.card} border-left:4px solid #ef4444;">
+                <p style="color:#b91c1c; margin:0;">Please settle your invoice immediately to reactivate your service.</p>
+            </div>
+            <div style="text-align: center;">
+                <a href="{{site_url}}/dashboard/invoices" style="${s.btnRed}">Pay Invoice</a>
+            </div>
+        `, 'Service Suspended', 'Services')
   },
 
-  admin_new_order: {
-    subject: 'New Order Received #{{order_id}} - {{site_name}}',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">New Order Received</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>A new order has been placed:</p>
-          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <p><strong>Order ID:</strong> #{{order_id}}</p>
-            <p><strong>Customer:</strong> {{user_name}} ({{user_email}})</p>
-            <p><strong>Total:</strong> {{order_total}}</p>
-            <p><strong>Payment Method:</strong> {{payment_method}}</p>
-          </div>
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="{{site_url}}/admin/orders" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Order</a>
-          </p>
-        </div>
-      </div>
-    `
-  },
-
-  admin_new_ticket: {
-    subject: 'New Support Ticket #{{ticket_id}} - {{site_name}}',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">New Support Ticket</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>A new support ticket has been created:</p>
-          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <p><strong>Ticket ID:</strong> #{{ticket_id}}</p>
-            <p><strong>Customer:</strong> {{user_name}} ({{user_email}})</p>
-            <p><strong>Subject:</strong> {{ticket_subject}}</p>
-            <p><strong>Priority:</strong> {{ticket_priority}}</p>
-          </div>
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="{{site_url}}/admin/tickets" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Ticket</a>
-          </p>
-        </div>
-      </div>
-    `
+  // --- MARKETING ---
+  newsletter_subscribe: {
+    subject: 'You\'re Subscribed! 🌟',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">Welcome to the Newsletter!</h1>
+            <p style="${s.p}">Thanks for subscribing! You're now on the list to receive our latest updates, tech tips, and exclusive offers.</p>
+            <div style="${s.card}">
+                <p style="margin:0; text-align:center; font-weight:500;">Stay tuned for our next issue!</p>
+            </div>
+            <div style="text-align: center;">
+                <a href="{{site_url}}" style="${s.btn}">Explore Site</a>
+            </div>
+            <p style="text-align:center; font-size:12px; color:#94a3b8; margin-top:20px;">
+                <a href="{{site_url}}/unsubscribe?email={{email}}" style="color:#94a3b8; text-decoration:underline;">Unsubscribe</a>
+            </p>
+        `, 'Subscription Confirmed', 'Marketing')
   },
 
   proposal_sent: {
-    subject: 'New Proposal: {{proposal_title}} - {{site_name}}',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">New Proposal</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>Hi {{user_name}},</p>
-          <p>You have received a new business proposal from {{site_name}}.</p>
-          <div style="background: white; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <p><strong>Proposal:</strong> {{proposal_title}}</p>
-            <p><strong>Total:</strong> {{proposal_total}}</p>
-          </div>
-          <p>Please review the proposal and accept or reject it at your earliest convenience.</p>
-          <p style="text-align: center; margin-top: 30px;">
-            <a href="{{proposal_link}}" style="background: #6366f1; color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; display: inline-block;">View Proposal</a>
-          </p>
-        </div>
-        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-          <p>© {{year}} {{site_name}}. All rights reserved.</p>
-        </div>
-      </div>
-    `
+    subject: 'New Proposal: {{proposal_title}}',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">New Business Proposal</h1>
+            <p style="${s.p}">You have received a new proposal: <strong>{{proposal_title}}</strong>.</p>
+            <div style="${s.card}">
+                <p><strong>Total Value:</strong> {{proposal_total}}</p>
+            </div>
+            <div style="text-align: center;">
+                <a href="{{proposal_link}}" style="${s.btn}">Review Proposal</a>
+            </div>
+        `, 'New Proposal', 'Marketing')
   },
 
-  newsletter_subscribe: {
-    subject: 'Welcome to {{site_name}} Newsletter! 🎉',
-    html: `
-      <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #1a1a2e;">
-        <div style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%); padding: 50px 40px; text-align: center; border-radius: 0 0 50px 50px;">
-          <table width="100%" cellpadding="0" cellspacing="0" border="0">
-            <tr>
-              <td align="center">
-                <div style="width: 80px; height: 80px; background: rgba(255,255,255,0.2); border-radius: 50%; margin: 0 auto 20px; line-height: 80px;">
-                  <span style="font-size: 40px;">📧</span>
-                </div>
-              </td>
-            </tr>
-            <tr>
-              <td align="center">
-                <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">You're Subscribed!</h1>
-                <p style="color: rgba(255,255,255,0.9); margin-top: 10px; font-size: 16px;">Welcome to the {{site_name}} newsletter</p>
-              </td>
-            </tr>
-          </table>
-        </div>
-        <div style="padding: 40px; background: #ffffff; margin: 0 20px; border-radius: 20px; transform: translateY(-30px); box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
-          <p style="color: #374151; font-size: 16px; line-height: 1.6;">Hi there! 👋</p>
-          <p style="color: #374151; font-size: 16px; line-height: 1.6;">Thank you for subscribing to our newsletter. You'll now receive:</p>
-          <div style="background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border-radius: 12px; padding: 20px; margin: 25px 0;">
-            <table width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td style="padding: 8px 0;">
-                  <table cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                      <td style="width: 32px; vertical-align: middle;">
-                        <div style="width: 24px; height: 24px; background: #10b981; border-radius: 50%; text-align: center; line-height: 24px;"><span style="color: white; font-size: 14px;">✓</span></div>
-                      </td>
-                      <td style="vertical-align: middle; color: #374151;">Exclusive deals & promotions</td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0;">
-                  <table cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                      <td style="width: 32px; vertical-align: middle;">
-                        <div style="width: 24px; height: 24px; background: #10b981; border-radius: 50%; text-align: center; line-height: 24px;"><span style="color: white; font-size: 14px;">✓</span></div>
-                      </td>
-                      <td style="vertical-align: middle; color: #374151;">New product announcements</td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0;">
-                  <table cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                      <td style="width: 32px; vertical-align: middle;">
-                        <div style="width: 24px; height: 24px; background: #10b981; border-radius: 50%; text-align: center; line-height: 24px;"><span style="color: white; font-size: 14px;">✓</span></div>
-                      </td>
-                      <td style="vertical-align: middle; color: #374151;">Tips & tutorials</td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0;">
-                  <table cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                      <td style="width: 32px; vertical-align: middle;">
-                        <div style="width: 24px; height: 24px; background: #10b981; border-radius: 50%; text-align: center; line-height: 24px;"><span style="color: white; font-size: 14px;">✓</span></div>
-                      </td>
-                      <td style="vertical-align: middle; color: #374151;">Industry news & updates</td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
-            </table>
-          </div>
-          <table width="100%" cellpadding="0" cellspacing="0" border="0">
-            <tr>
-              <td align="center" style="padding-top: 20px;">
-                <a href="{{site_url}}" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 14px 40px; text-decoration: none; border-radius: 30px; display: inline-block; font-weight: 600;">Explore Our Services</a>
-              </td>
-            </tr>
-          </table>
-        </div>
-        <div style="padding: 30px; text-align: center; color: #9ca3af;">
-          <p style="font-size: 12px; margin: 0;">© {{year}} {{site_name}}. All rights reserved.</p>
-          <p style="font-size: 11px; margin-top: 10px;">
-            Don't want to receive these emails? <a href="{{site_url}}/unsubscribe?email={{email}}" style="color: #6366f1;">Unsubscribe</a>
-          </p>
-        </div>
-      </div>
-    `
+  // --- SYSTEM / ADMIN ---
+  admin_new_order: {
+    subject: '[Admin] New Order #{{order_id}}',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">New Order Received</h1>
+            <div style="${s.card}">
+                <p><strong>Order ID:</strong> #{{order_id}}</p>
+                <p><strong>Customer:</strong> {{user_name}}</p>
+                <p><strong>Total:</strong> {{order_total}}</p>
+                <p><strong>Payment:</strong> {{payment_method}}</p>
+            </div>
+            <div style="text-align: center;">
+                <a href="{{site_url}}/admin/orders" style="${s.btn}">View Order</a>
+            </div>
+        `, 'Admin Notification', 'System')
+  },
+
+  admin_new_ticket: {
+    subject: '[Admin] New Ticket #{{ticket_id}}',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">New Support Ticket</h1>
+            <div style="${s.card}">
+                <p><strong>Ticket ID:</strong> #{{ticket_id}}</p>
+                <p><strong>Customer:</strong> {{user_name}}</p>
+                <p><strong>Subject:</strong> {{ticket_subject}}</p>
+                <p><strong>Priority:</strong> {{ticket_priority}}</p>
+            </div>
+            <div style="text-align: center;">
+                <a href="{{site_url}}/admin/tickets" style="${s.btn}">Reply to Ticket</a>
+            </div>
+        `, 'Admin Notification', 'System')
   },
 
   test_email: {
-    subject: 'Test Email - {{site_name}}',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <div style="background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 40px; text-align: center;">
-          <h1 style="color: white; margin: 0;">Test Email</h1>
-        </div>
-        <div style="padding: 40px; background: #f9fafb;">
-          <p>If you're receiving this email, your Mailgun configuration is working correctly!</p>
-          <p>Email sent at: {{timestamp}}</p>
-        </div>
-        <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
-          <p>© {{year}} {{site_name}}. All rights reserved.</p>
-        </div>
-      </div>
-    `
+    subject: 'System Test Email 🧪',
+    html: getPremiumTemplateWrapper(`
+            <h1 style="${s.h1}">Test Email</h1>
+            <p style="${s.p}">If you are reading this, your email configuration is working perfectly! 🎉</p>
+            <div style="${s.card}">
+                <p><strong>Sent at:</strong> {{timestamp}}</p>
+            </div>
+        `, 'System Test', 'System')
   }
 };
 
@@ -547,10 +485,7 @@ class EmailService {
     const keys = [
       'mailgun_enabled', 'mailgun_api_key', 'mailgun_domain',
       'mailgun_from_email', 'mailgun_from_name', 'mailgun_region',
-      'welcome_email', 'password_reset', 'newsletter_subscribe', 'order_placed', 'order_confirmed',
-      'order_processing', 'order_completed', 'order_cancelled',
-      'ticket_created', 'ticket_replied', 'ticket_closed',
-      'invoice_generated', 'payment_received', 'service_expiring', 'service_suspended',
+      'email_logo', // Ensure email_logo is fetched
       'site_name', 'site_url'
     ];
 
@@ -569,7 +504,6 @@ class EmailService {
       results.forEach(row => {
         if (row && row.setting_key) {
           let value = row.setting_value;
-          // Convert boolean strings to actual booleans
           if (row.setting_type === 'boolean') {
             value = value === 'true' || value === '1';
           }
@@ -583,13 +517,15 @@ class EmailService {
 
   async isEnabled(eventType) {
     const settings = await this.getSettings();
-    return settings.mailgun_enabled && settings[eventType] !== false;
+    // Check both global enable and specific event enable if it exists in settings
+    // Current implementation assumes enabled if not explicitly disabled
+    return settings.mailgun_enabled;
   }
 
   replaceVariables(template, variables) {
     let result = template;
     for (const [key, value] of Object.entries(variables)) {
-      result = result.replace(new RegExp(`{{${key}}}`, 'g'), value || '');
+      result = result.replace(new RegExp(`{{${key}}}`, 'g'), value !== undefined && value !== null ? value : '');
     }
     return result;
   }
@@ -618,47 +554,37 @@ class EmailService {
         if (customResults && customResults.length > 0 && customResults[0].is_active) {
           customTemplate = customResults[0];
         }
-
-        // Get email logo
-        const logoResult = await db.query(
-          "SELECT setting_value FROM settings WHERE setting_key = 'email_logo'"
-        );
-        if (logoResult && logoResult.length > 0) {
-          emailLogo = logoResult[0].setting_value;
-        }
       } catch (dbErr) {
-        console.log('Could not load custom template or logo:', dbErr.message);
+        console.log('Could not load custom template:', dbErr.message);
       }
 
       // Use custom template if exists, otherwise use default
       const templateSubject = customTemplate?.subject || defaultTemplate.subject;
       const templateHtml = customTemplate?.html_content || defaultTemplate.html;
 
-      // Add default variables + logo
+      // Get settings for defaults
       const settings = await this.getSettings();
+
+      // Prepare logo HTML if exists
+      let logoHtml = '';
+      if (settings.email_logo) {
+        logoHtml = `<img src="${settings.email_logo}" alt="${settings.site_name}" style="max-height: 48px; max-width: 200px; display: block; border: 0;" />`;
+      }
+
+      // Add default variables
       const allVariables = {
         site_name: settings.site_name || 'Magnetic Clouds',
         site_url: settings.site_url || 'https://magnetic-clouds.com',
         year: new Date().getFullYear(),
-        email_logo: emailLogo || '',
+        email: to, // Add recipient email for cleaner footer
+        email_logo: logoHtml, // Standardized variable for wrapper
         ...variables
       };
 
       subject = this.replaceVariables(templateSubject, allVariables);
       html = this.replaceVariables(templateHtml, allVariables);
 
-      // If logo exists, add it INSIDE the first gradient header div (after the opening tag)
-      if (emailLogo) {
-        const logoHtml = `<div style="margin-bottom: 15px;"><img src="${emailLogo}" alt="${allVariables.site_name}" style="max-width: 150px; max-height: 45px; object-fit: contain;" /></div>`;
-
-        // Find the gradient div and insert logo inside it at the beginning
-        const gradientMatch = html.match(/(<div[^>]*background:\s*linear-gradient[^>]*>)/i);
-        if (gradientMatch) {
-          html = html.replace(gradientMatch[0], gradientMatch[0] + logoHtml);
-        }
-      }
-
-      // Always log email attempt first
+      // Log email attempt
       await this.logEmail({
         uuid: emailUuid,
         user_id: userId,
@@ -673,21 +599,22 @@ class EmailService {
 
       // Check if Mailgun is enabled
       if (!await this.isEnabled(templateName)) {
-        console.log(`Email ${templateName} is disabled or Mailgun not configured - logged only`);
-        await this.updateEmailLog(emailUuid, 'failed', 'Mailgun not configured or email type disabled');
+        console.log(`Email ${templateName} is disabled or Mailgun not configured`);
+        await this.updateEmailLog(emailUuid, 'failed', 'Mailgun not configured');
         return false;
       }
 
-      // Initialize if needed
+      // Initialize Mailgun
       if (!this.mg) {
         const initialized = await this.init();
         if (!initialized) {
-          console.log('Mailgun not initialized - email logged');
-          await this.updateEmailLog(emailUuid, 'failed', 'Mailgun initialization failed');
+          console.log('Mailgun initialization failed');
+          await this.updateEmailLog(emailUuid, 'failed', 'Mailgun init failed');
           return false;
         }
       }
 
+      // Send via Mailgun
       const result = await this.mg.messages.create(this.settings.mailgun_domain, {
         from: `${this.settings.mailgun_from_name} <${this.settings.mailgun_from_email}>`,
         to: [to],
@@ -697,12 +624,11 @@ class EmailService {
 
       // Update log to sent
       await this.updateEmailLog(emailUuid, 'sent');
-
       console.log(`Email sent: ${templateName} to ${to}`, result.id);
       return true;
+
     } catch (error) {
       console.error('Email send error:', error);
-      // Update log to failed
       await this.updateEmailLog(emailUuid, 'failed', error.message);
       return false;
     }
@@ -711,11 +637,10 @@ class EmailService {
   async logEmail({ uuid, user_id, recipient_email, recipient_name, subject, template, html_content, status, metadata }) {
     try {
       await db.query(`
-        INSERT INTO email_logs (uuid, user_id, recipient_email, recipient_name, subject, template, html_content, status, metadata)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [uuid, user_id, recipient_email, recipient_name, subject, template, html_content, status, metadata]);
+                INSERT INTO email_logs (uuid, user_id, recipient_email, recipient_name, subject, template, html_content, status, metadata)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [uuid, user_id, recipient_email, recipient_name, subject, template, html_content, status, metadata]);
     } catch (error) {
-      // Silently fail if table doesn't exist
       console.error('Email log error:', error.message);
     }
   }
@@ -723,47 +648,41 @@ class EmailService {
   async updateEmailLog(uuid, status, errorMessage = null) {
     try {
       if (status === 'sent') {
-        await db.query(
-          'UPDATE email_logs SET status = ?, sent_at = NOW() WHERE uuid = ?',
-          [status, uuid]
-        );
+        await db.query('UPDATE email_logs SET status = ?, sent_at = NOW() WHERE uuid = ?', [status, uuid]);
       } else {
-        await db.query(
-          'UPDATE email_logs SET status = ?, error_message = ? WHERE uuid = ?',
-          [status, errorMessage, uuid]
-        );
+        await db.query('UPDATE email_logs SET status = ?, error_message = ? WHERE uuid = ?', [status, errorMessage, uuid]);
       }
     } catch (error) {
-      // Silently fail if table doesn't exist
       console.error('Email log update error:', error.message);
     }
   }
 
-  // Convenience methods for different events
+  // Convenience methods
   async sendWelcome(user) {
-    return this.send(user.email, 'welcome_email', {
-      user_name: user.first_name || user.email
-    }, user.id);
+    return this.send(user.email, 'welcome_email', { user_name: user.first_name || user.email }, user.id);
   }
 
   async sendPasswordReset(user, resetLink) {
-    return this.send(user.email, 'password_reset', {
-      user_name: user.first_name || user.email,
-      reset_link: resetLink
-    }, user.id);
+    return this.send(user.email, 'password_reset', { user_name: user.first_name || user.email, reset_link: resetLink }, user.id);
   }
 
+  // Add other event helpers matching the previous structure
   async sendOrderPlaced(order, user) {
-    const itemsHtml = order.items?.map(item =>
-      `<p style="margin: 5px 0;">• ${item.name || item.product_type} - $${item.price}</p>`
-    ).join('') || '';
+    // Items html formatting
+    let itemsHtml = '';
+    if (order.items && Array.isArray(order.items)) {
+      itemsHtml = order.items.map(item => `
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                    <span>${item.name || item.product_name}</span>
+                    <span>$${item.price}</span>
+                </div>
+            `).join('');
+    }
 
     return this.send(user.email, 'order_placed', {
       user_name: user.first_name || user.email,
       order_id: order.uuid || order.id,
-      order_date: new Date().toLocaleDateString(),
-      order_total: `$${order.total?.toFixed(2) || '0.00'}`,
-      payment_status: order.payment_status || 'Pending',
+      order_total: `$${order.total}`,
       order_items: itemsHtml
     }, user.id);
   }
@@ -772,7 +691,7 @@ class EmailService {
     return this.send(user.email, 'order_confirmed', {
       user_name: user.first_name || user.email,
       order_id: order.uuid || order.id,
-      order_total: `$${order.total?.toFixed(2) || '0.00'}`
+      order_total: `$${order.total}`
     }, user.id);
   }
 
@@ -795,7 +714,7 @@ class EmailService {
       user_name: user.first_name || user.email,
       ticket_id: ticket.id,
       ticket_subject: ticket.subject,
-      ticket_priority: ticket.priority
+      ticket_priority: ticket.priority || 'Normal'
     }, user.id);
   }
 
@@ -803,9 +722,8 @@ class EmailService {
     return this.send(user.email, 'ticket_replied', {
       user_name: user.first_name || user.email,
       ticket_id: ticket.id,
-      ticket_subject: ticket.subject,
       reply_from: replyFrom,
-      reply_message: reply.message?.substring(0, 500) || ''
+      reply_message: reply.message ? reply.message.replace(/\n/g, '<br>') : 'New reply received.'
     }, user.id);
   }
 
@@ -816,63 +734,41 @@ class EmailService {
     }, user.id);
   }
 
-  async sendTestEmail(to) {
-    // Force init for test
-    await this.init();
-    if (!this.mg) {
-      throw new Error('Mailgun not configured');
-    }
-
-    const emailUuid = uuidv4();
-    const settings = await this.getSettings();
-    const template = templates.test_email;
-    const variables = {
-      site_name: settings.site_name || 'Magnetic Clouds',
-      timestamp: new Date().toISOString(),
-      year: new Date().getFullYear()
-    };
-
-    const subject = this.replaceVariables(template.subject, variables);
-    const html = this.replaceVariables(template.html, variables);
-
-    // Log before sending
-    await this.logEmail({
-      uuid: emailUuid,
-      user_id: null,
-      recipient_email: to,
-      recipient_name: null,
-      subject,
-      template: 'test_email',
-      html_content: html,
-      status: 'pending',
-      metadata: JSON.stringify(variables)
-    });
-
-    try {
-      const result = await this.mg.messages.create(this.settings.mailgun_domain, {
-        from: `${this.settings.mailgun_from_name} <${this.settings.mailgun_from_email}>`,
-        to: [to],
-        subject: subject,
-        html: html
-      });
-
-      await this.updateEmailLog(emailUuid, 'sent');
-      return result;
-    } catch (error) {
-      await this.updateEmailLog(emailUuid, 'failed', error.message);
-      throw error;
-    }
+  async invoiceGenerated(invoice, user) {
+    return this.send(user.email, 'invoice_generated', {
+      user_name: user.first_name || user.email,
+      invoice_id: invoice.id,
+      invoice_amount: `$${invoice.amount}`,
+      due_date: new Date(invoice.due_date).toLocaleDateString()
+    }, user.id);
   }
 
-  // Admin notifications
+  async paymentReceived(payment, user) {
+    return this.send(user.email, 'payment_received', {
+      user_name: user.first_name || user.email,
+      invoice_id: payment.invoice_id,
+      payment_amount: `$${payment.amount}`,
+      payment_date: new Date().toLocaleDateString()
+    }, user.id);
+  }
+
+  async sendTestEmail(to) {
+    // Force init
+    await this.init();
+    if (!this.mg) throw new Error('Mailgun not configured');
+
+    return this.send(to, 'test_email', {
+      timestamp: new Date().toLocaleString()
+    });
+  }
+
   async notifyAdminNewOrder(order, user) {
     const admins = await db.query("SELECT email FROM users WHERE role = 'admin'");
     for (const admin of admins) {
       await this.send(admin.email, 'admin_new_order', {
         order_id: order.uuid || order.id,
-        user_name: `${user.first_name} ${user.last_name}`,
-        user_email: user.email,
-        order_total: `$${order.total?.toFixed(2) || '0.00'}`,
+        user_name: user.first_name ? `${user.first_name} ${user.last_name}` : user.email,
+        order_total: `$${order.total}`,
         payment_method: order.payment_method
       });
     }
@@ -883,32 +779,26 @@ class EmailService {
     for (const admin of admins) {
       await this.send(admin.email, 'admin_new_ticket', {
         ticket_id: ticket.id,
-        user_name: `${user.first_name} ${user.last_name}`,
-        user_email: user.email,
+        user_name: user.first_name ? `${user.first_name} ${user.last_name}` : user.email,
         ticket_subject: ticket.subject,
         ticket_priority: ticket.priority
       });
     }
   }
 
-  // Newsletter subscription confirmation
   async sendNewsletterConfirmation(email) {
     return this.send(email, 'newsletter_subscribe', {
       email: encodeURIComponent(email)
     });
   }
 
-  // Get default template HTML by key (for admin editor)
   getDefaultTemplate(key) {
-    const template = templates[key];
-    return template?.html || null;
+    return templates[key]?.html || null;
   }
 
-  // Get all template keys
   getTemplateKeys() {
     return Object.keys(templates);
   }
 }
 
 module.exports = new EmailService();
-
