@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Helmet } from 'react-helmet-async'
-import { Save, Palette, Globe, CreditCard, Image, Upload, X, Plus, Trash2, Users, Moon, Sun } from 'lucide-react'
+import { Save, Palette, Globe, CreditCard, Image, Upload, X, Plus, Trash2, Users, Moon, Sun, RefreshCw } from 'lucide-react'
 import { useThemeStore, useSiteSettingsStore } from '../../store/useStore'
 import api from '../../lib/api'
 import toast from 'react-hot-toast'
@@ -577,6 +577,46 @@ export default function AdminSettings() {
               <input type="number" defaultValue="45" className="input" />
             </div>
           </div>
+        </div>
+
+        {/* Clear Cache Section */}
+        <div className="card p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <RefreshCw className="w-6 h-6 text-orange-500" />
+            <h2 className="text-lg font-bold">Clear Cache</h2>
+          </div>
+          <p className="text-sm text-dark-500 mb-4">
+            Clear all cached data from users' browsers. This will reset stored settings, theme preferences, and header/footer configurations. Users will need to reload the page to fetch fresh data.
+          </p>
+          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-4">
+            <p className="text-sm text-orange-700 dark:text-orange-300">
+              <strong>Warning:</strong> This clears the following cached data:
+            </p>
+            <ul className="text-sm text-orange-600 dark:text-orange-400 mt-2 ml-4 list-disc">
+              <li>Theme preferences (dark/light mode)</li>
+              <li>Site settings (logo, name, etc.)</li>
+              <li>Header & Footer settings</li>
+              <li>Language preferences</li>
+              <li>Shopping cart contents</li>
+            </ul>
+          </div>
+          <button
+            onClick={() => {
+              // Clear all localStorage keys that start with 'magnetic-'
+              const keysToRemove = []
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i)
+                if (key && key.startsWith('magnetic-')) {
+                  keysToRemove.push(key)
+                }
+              }
+              keysToRemove.forEach(key => localStorage.removeItem(key))
+              toast.success(`Cache cleared! ${keysToRemove.length} items removed. Reload the page to see changes.`)
+            }}
+            className="btn bg-orange-500 hover:bg-orange-600 text-white"
+          >
+            <Trash2 className="w-4 h-4 mr-2" /> Clear All Cache
+          </button>
         </div>
 
         <button onClick={handleSave} disabled={loading} className="btn-primary">
